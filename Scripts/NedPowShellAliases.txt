@@ -1,0 +1,11 @@
+# Alias File
+# Exported by : Ned
+# Date/Time : Friday, March 8, 2013 2:35:03 PM
+# Computer : NEDMURP-LAP
+"root","GoToRoot","","None"
+"n","C:\Program Files (x86)\Notepad++\notepad++.exe","","None"
+"np","notepad.exe","","None"
+"vs","C:\Program Files (x86)\Microsoft Visual Studio 11.0\Common7\IDE\devenv.exe","","None"
+"up","GoUp","","None"
+"fstr","findString","","None"
+"ffile","FindFiles","","None"

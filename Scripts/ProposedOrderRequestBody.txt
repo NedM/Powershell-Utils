@@ -1,0 +1,70 @@
+{
+  "proposed_order": {
+    "payment_token_data": "LU02000008ZS9OJFUBNEL6ZM030000LU",
+    "cashier": "Bob",
+    "exemption_amount": 0,
+    "receipt_message_html": null,
+    "register": "3",
+    "tax_amount": 89,
+    "identifier_from_merchant": "001001",
+    "partial_authorization_allowed": true,
+    "location_id": 19,
+    "spend_amount": 986,
+    "items": [
+      {
+        "item": {
+          "charged_price_amount": 299,
+          "description": "Shredded potatoes griddled to perfection",
+          "name": "Hashbrowns",
+          "quantity": 1,
+          "sku": "01abc192",
+          "category": "Breakfast Sides",
+          "standard_price_amount": 299,
+          "children": [
+            {
+              "item": {
+                "charged_price_amount": 0,
+                "name": "Special Instructions",
+                "description": "Scattered"
+              }
+            },
+            {
+              "item": {
+                "charged_price_amount": 50,
+                "name": "Onions",
+                "description": "Smothered"
+              }
+            },
+            {
+              "item": {
+                "charged_price_amount": 100,
+                "name": "Cheese",
+                "quantity": 2,
+                "description": "Covered"
+              }
+            },
+            {
+              "item": {
+                "charged_price_amount": 50,
+                "name": "Ham",
+                "description": "Chunked"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "item": {
+          "charged_price_amount": 398,
+          "description": "12oz Can of Coca-Cola",
+          "name": "Can Coke",
+          "quantity": 2,
+          "sku": "291soo01",
+          "category": "Drinks",
+          "standard_price_amount": 398,
+          "upc": "04963406"
+        }
+      }
+    ]
+  }
+}
