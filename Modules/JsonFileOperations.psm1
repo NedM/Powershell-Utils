@@ -1,4 +1,11 @@
-﻿function Read-JsonFile($path) {
+﻿function Read-JsonFile{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [Alias('p')]
+        [string]$path
+    )
+
     Write-Debug ("Attempting to import data from {0}" -f $path)
 
     if(-not (Test-Path $path)) {
@@ -15,7 +22,17 @@
     return $fromJson
 }
 
-function Write-JsonFile($path, $data) {
+function Write-JsonFile {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [Alias('p')]
+        [string]$path,
+        [Parameter(Mandatory = $true)]
+        [Alias('d')]
+        [Hashtable]$data
+    )
+
     if(Test-Path $path) {
         Write-Host ("{0} already exists!" -f $path)
 
@@ -57,8 +74,8 @@ function GetUserInputBool([string]$prompt) {
     $response = GetUserInput -prompt $prompt -allowedResponses ($affirmativeResponses + $negativeResponses)
 
     if($affirmativeResponses.Contains($response)) {
-        return true
+        return $true
     }
 
-    return false
+    return $false
 }

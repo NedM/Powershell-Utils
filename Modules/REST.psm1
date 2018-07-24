@@ -2,12 +2,49 @@
 # REST Module #
 ###############
 
+function Create-Uri {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$base,
+        [Parameter(Mandatory=$false)]
+        [string]$path = $null,
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$parameters = $null
+    )
+
+    if($null -ne $parameters -and $parameters.Count -gt 0) {
+        $params = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        foreach($kvp in $parameters.GetEnumerator()) {
+            if($kvp.Value -is [array]) {
+                foreach($val in $kvp.Value) {
+                    $params.Add($kvp.Key, $val)
+                }
+            } else {
+                $params.Add($kvp.Key, $kvp.Value)
+            }
+        }
+    }
+    $uriParts = @($base, $path)
+    $request = [System.UriBuilder]($uriParts -join '/')
+    $request.Query = $params.ToString()
+
+    return $request.Uri.ToString()
+}
+
 function Submit-GetRequest{
-[cmdletbinding()]
-Param([string]$uri, $headers)
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$uri, 
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$headers
+    )
+    
     Write-Verbose "Calling GET on $uri"
+    
     try {
-        return iwr -Method Get -Uri $uri -Headers $headers
+        return Invoke-WebRequest -Method Get -Uri $uri -Headers $headers
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
@@ -15,11 +52,20 @@ Param([string]$uri, $headers)
 }
 
 function Submit-PostRequest{
-[cmdletbinding()]
-Param([string]$uri, [string]$body, $headers)
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$uri, 
+        [Parameter(Mandatory=$true)]
+        [string]$body, 
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$headers
+    )
+    
     Write-Verbose "Calling POST on $uri`nBody:`n$body"
+
     try {
-        return iwr -Method Post -Uri $uri -Body $body -Headers $headers
+        return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $headers
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
@@ -27,11 +73,19 @@ Param([string]$uri, [string]$body, $headers)
 }
 
 function Submit-PutRequest{
-[cmdletbinding()]
-Param([string]$uri, [string]$body, $headers)
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$uri, 
+        [Parameter(Mandatory=$true)]
+        [string]$body, 
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$headers
+    )
     Write-Verbose "Calling PUT on $uri`nBody:`n$body"
+    
     try {
-        return iwr -Method Put -Uri $uri -Body $body -Headers $headers
+        return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $headers
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
