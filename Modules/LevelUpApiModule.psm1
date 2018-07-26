@@ -924,14 +924,14 @@ function Get-LevelUpOAProviderInfo {
     )
 
     if(-not $Script:allowed_fulfillment_types.Contains($fulfillmentType)) {
-        Write-Host ("Warning! `"{0}`" is not a valid fulfillment type. Valid types are [{1}]" -f $fulfillmentType, ($fulfillmentTypes -join ', ')) -ForegroundColor Yellow
+        Write-Host ("Warning! `"{0}`" is not a valid fulfillment type. Valid types are [{1}]" -f $fulfillmentType, ($Script:allowed_fulfillment_types -join ', ')) -ForegroundColor Yellow
         Write-Host "Using fulfillment_type `"in_store`""
         $fulfillmentType = 'in_store'
     }
 
     $accessToken = ("service={0}" -f $serviceToken)
 
-    $theUri = ("{0}/order_ahead/location/{1}/provider?fulfillment_type={2}" -f $global:baseURI, $locationId, $fulfillmentType)
+    $theUri = ("{0}order_ahead/locations/{1}/provider?fulfillment_type={2}" -f $global:baseURI, $locationId, $fulfillmentType)
 
     $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $accessToken
 
