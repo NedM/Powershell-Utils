@@ -13,6 +13,8 @@ function Create-Uri {
         [Hashtable]$parameters = $null
     )
 
+    $params = ''
+
     if($null -ne $parameters -and $parameters.Count -gt 0) {
         $params = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
         foreach($kvp in $parameters.GetEnumerator()) {
@@ -25,7 +27,7 @@ function Create-Uri {
             }
         }
     }
-    $uriParts = @($base, $path)
+    $uriParts = @($base, $path) | foreach { $_.Trim('/') }
     $request = [System.UriBuilder]($uriParts -join '/')
     $request.Query = $params.ToString()
 
@@ -36,13 +38,13 @@ function Submit-GetRequest{
     [cmdletbinding()]
     Param(
         [Parameter(Mandatory=$true)]
-        [string]$uri, 
+        [string]$uri,
         [Parameter(Mandatory=$false)]
         [Hashtable]$headers
     )
-    
+
     Write-Verbose "Calling GET on $uri"
-    
+
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $headers
     }
@@ -55,13 +57,13 @@ function Submit-PostRequest{
     [cmdletbinding()]
     Param(
         [Parameter(Mandatory=$true)]
-        [string]$uri, 
+        [string]$uri,
         [Parameter(Mandatory=$true)]
-        [string]$body, 
+        [string]$body,
         [Parameter(Mandatory=$false)]
         [Hashtable]$headers
     )
-    
+
     Write-Verbose "Calling POST on $uri`nBody:`n$body"
 
     try {
@@ -76,14 +78,14 @@ function Submit-PutRequest{
     [cmdletbinding()]
     Param(
         [Parameter(Mandatory=$true)]
-        [string]$uri, 
+        [string]$uri,
         [Parameter(Mandatory=$true)]
-        [string]$body, 
+        [string]$body,
         [Parameter(Mandatory=$false)]
         [Hashtable]$headers
     )
     Write-Verbose "Calling PUT on $uri`nBody:`n$body"
-    
+
     try {
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $headers
     }

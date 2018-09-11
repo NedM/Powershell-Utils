@@ -1129,6 +1129,39 @@ function Submit-PutRequest {
 # Helper Methods #
 ##################
 
+function Create-Uri {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$base,
+        [Parameter(Mandatory=$false)]
+        [string]$path = $null,
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$parameters = $null
+    )
+
+    $params = ''
+
+    if($null -ne $parameters -and $parameters.Count -gt 0) {
+        $params = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        foreach($kvp in $parameters.GetEnumerator()) {
+            if($kvp.Value -is [array]) {
+                foreach($val in $kvp.Value) {
+                    $params.Add($kvp.Key, $val)
+                }
+            } else {
+                $params.Add($kvp.Key, $kvp.Value)
+            }
+        }
+    }
+
+    $uriParts = @($base, $path) | foreach { $_.Trim('/') }
+    $request = [System.UriBuilder]($uriParts -join '/')
+    $request.Query = $params.ToString()
+
+    return $request.Uri.ToString()
+}
+
 function Get-LevelUpSampleItemList() {
     $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 0 7
     $item2 = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 100 1
