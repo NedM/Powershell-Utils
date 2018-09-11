@@ -52,14 +52,14 @@ function Get-LevelUpModuleConfig {
 
     $config = $null
 
-    Write-Host "Attempting to read config at $pathToConfig..."
+    Write-Verbose "Attempting to read config at $pathToConfig..."
 
     if(Test-Path $pathToConfig) {
         $config = Read-JsonFile -path $pathToConfig
 
         if($environment) {
             $environment = $environment.ToLower()
-            Write-Host "Reading config for $environment..."
+            Write-Verbose "Reading config for $environment..."
 
             $config = $config | select-object -property $environment -ExpandProperty $environment
         }
