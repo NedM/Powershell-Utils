@@ -40,16 +40,31 @@ Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
 
 ## Read config file ##
 function Get-LevelUpModuleConfig {
+    [cmdletbinding()]
     Param(
-        [Parameter()]
+        [Parameter(Mandatory = $false)]
         [Alias('p')]
-        $pathToConfig = $Script:pathToConfig
+        [string]$pathToConfig = $Script:pathToConfig,
+        [Parameter(Mandatory = $false)]
+        [Alias('e')]
+        [string]$environment
     )
 
-    $config = @{}
+    $config = $null
+
+    Write-Host "Attempting to read config at $pathToConfig..."
 
     if(Test-Path $pathToConfig) {
         $config = Read-JsonFile -path $pathToConfig
+
+        if($environment) {
+            $environment = $environment.ToLower()
+            Write-Host "Reading config for $environment..."
+
+            $config = $config | select-object -property $environment -ExpandProperty $environment
+        }
+    } else {
+        Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
     }
 
     if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
@@ -82,22 +97,43 @@ function Set-LevelUpEnvironment{
     }
 
     switch($version) {
-        0 { $global:ver = '/' }
+        0 { $global:ver = $null }
         13 { $global:ver = $v13 }
         14 { $global:ver = $v14 }
         default { $global:ver = $v15 }
     }
 
-    $global:uri = $global:baseURI + $global:ver
+    $global:uri = (@($global:baseURI.TrimEnd('/'), $global:ver) -join '/')
 
     Write-Host ("Set environment as: {0}" -f $global:uri) -ForegroundColor Cyan
 }
 
+function Load-LevelUpConfigFromFile {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $false)]
+        [Alias('p')]
+        [string]$pathToConfig = $Script:pathToConfig,
+        [Parameter(Mandatory = $false)]
+        [Alias('e')]
+        [string]$environment
+    )
+
+    $config = Get-LevelUpModuleConfig -pathToConfig $pathToConfig -environment $environment
+
+    Load-LevelUpConfig($config)
+}
 function Load-LevelUpConfig {
     [cmdletbinding()]
-    Param()
+    Param(
+        [Parameter(Mandatory = $false)]
+        [Alias('c')]
+        $config
+    )
 
-    $config = Get-LevelUpModuleConfig
+    if(!$config) {
+        $config = Get-LevelUpModuleConfig
+    }
 
     if($config) {
         $Script:apiKey = $config.api_key
@@ -163,7 +199,7 @@ function Add-LevelUpAuthorizationHeader {
         [Parameter(Mandatory=$true)]
         [string]$token,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers = $commonHeaders
+        $headers = $commonHeaders
     )
 
     $authKey = "Authorization"
