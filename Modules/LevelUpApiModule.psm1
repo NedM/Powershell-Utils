@@ -18,7 +18,7 @@ $v13 = "v13/"
 $v14 = "v14/"
 $v15 = "v15/"
 
-$global:ver = $v14
+$global:ver = $v15
 $global:baseURI = $productionBaseURI
 $global:uri = $global:baseURI + $global:ver
 
@@ -199,7 +199,7 @@ function Add-LevelUpAuthorizationHeader {
         [Parameter(Mandatory=$true)]
         [string]$token,
         [Parameter(Mandatory=$false)]
-        $headers = $commonHeaders
+        [Hashtable]$headers = $commonHeaders
     )
 
     $authKey = "Authorization"
