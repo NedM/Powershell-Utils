@@ -14,6 +14,9 @@ $sandboxBaseURI = "https://sandbox.thelevelup.com/"
 ## LEVELUP API ##
 #################
 
+# Force TLS v1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
 $v13 = "v13/"
 $v14 = "v14/"
 $v15 = "v15/"
@@ -1234,6 +1237,12 @@ function HandleWebException {
         [Parameter()]
         [System.Net.WebException]$exception
     )
+
+    if(!$exception.Response) {
+        Write-Host $exception -ForegroundColor Red
+        return 1;
+    }
+
     $statusCode = [int]$exception.Response.StatusCode
     $statusDescription = $exception.Response.StatusDescription
     Write-Host -ForegroundColor:Red "HTTP Error: $statusCode $statusDescription"
@@ -1249,7 +1258,7 @@ function HandleWebException {
     }
     catch {
         # Just output the body as raw data
-        Write-Host -ForegroundColor:Red $global:responseBody
+        Write-Host $global:responseBody -ForegroundColor Red 
     }
     break
 }

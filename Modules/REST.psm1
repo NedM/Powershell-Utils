@@ -2,6 +2,9 @@
 # REST Module #
 ###############
 
+# Force TLS v1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
 function Create-Uri {
     [cmdletbinding()]
     Param(
