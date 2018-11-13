@@ -126,6 +126,7 @@ function Load-LevelUpConfigFromFile {
 
     Load-LevelUpConfig($config)
 }
+
 function Load-LevelUpConfig {
     [cmdletbinding()]
     Param(
@@ -311,7 +312,7 @@ function Submit-LevelUpProposedOrder {
 
     $accessToken = "merchant=" + $merchantAccessToken
 
-    $response = Submit-PostRequest $theURI $body $accessToken
+    $response = Submit-PostRequest -uri $theURI -body $body -accessToken $accessToken
     $parsed = $response.Content | ConvertFrom-Json
 
     return $parsed.proposed_order
@@ -829,6 +830,68 @@ function Get-LevelUpLocationsForApp{
     return $parsed.location
 }
 
+## RECEIPT SCANS ##
+function Get-LevelUpReceiptScanLocation{
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$userAccessToken = $Script:merchantAccessToken
+    )
+
+    $accessToken = "user={0}" -f $userAccessToken
+
+    $theUri = "{0}receipt_scans/image_upload" -f ($global:baseURI+$v15)
+
+    $response = Submit-GetRequest -uri $theURI -accessToken $accessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.receipt_scan_image_upload
+}
+
+## Upload Receipt ##
+function Send-LevelUpReceiptScan{
+    [cmdletbinding()]
+    Param(
+        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory=$true)]
+        [int[]]$campaignIds,
+        [Parameter(Mandatory=$true)]
+        [int]$locationId,
+        [Parameter(Mandatory=$true)]
+        [int]$checkId,
+        [Parameter(Mandatory=$true)]
+        [int]$subtotalAmount,
+        [Parameter(Mandatory=$true)]
+        [string]$urlToPhoto,
+        [Parameter(Mandatory=$true)]
+        [string]$userAccessToken
+    )
+
+    $currentDateTime = Get-Date -format "yyyy-MM-ddTHH:mm"
+    $receiptScan = @{
+        'receipt_scan' = @{
+            'campaign_ids' = $campaignIds;
+            'location_id' = $locationId;
+            'check_identifier' = $checkId;
+            'scan_reason' = 'I am making a test!';
+            'receipt_at' = $currentDateTime;
+            'subtotal_amount' = $subtotalAmount;
+            'image_url' = $urlToPhoto;
+        }
+    }
+
+    $accessToken = "user={0}" -f $userAccessToken
+
+    $theUri = "{0}receipt_scans" -f ($global:baseURI+$v15)
+
+    $body = $receiptScan | ConvertTo-Json
+
+    $response = Submit-PostRequest -uri $theURI -accessToken $accessToken -body $body
+
+    return $response.StatusCode
+}
+
 #################################
 # LevelUp Order Ahead API Calls #
 #################################
@@ -864,6 +927,7 @@ function Complete-LevelUpOAOrderById {
     )
     return Complete-LevelUpOAOrder -userToken $userToken -url ("{0}order_ahead/order/{1}/complete" -f ($global:baseURI+$v15), $orderUuid)
 }
+
 function Complete-LevelUpOAOrder {
     [cmdletbinding()]
     param(
@@ -1258,7 +1322,7 @@ function HandleWebException {
     }
     catch {
         # Just output the body as raw data
-        Write-Host $global:responseBody -ForegroundColor Red 
+        Write-Host $global:responseBody -ForegroundColor Red
     }
     break
 }
