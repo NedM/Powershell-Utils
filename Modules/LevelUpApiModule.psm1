@@ -831,6 +831,7 @@ function Get-LevelUpLocationsForApp{
 }
 
 ## RECEIPT SCANS ##
+# Get Receipt Deposit Location #
 function Get-LevelUpReceiptScanLocation{
     [cmdletbinding()]
     Param(
@@ -859,7 +860,7 @@ function Send-LevelUpReceiptScan{
         [Parameter(Mandatory=$true)]
         [int]$locationId,
         [Parameter(Mandatory=$true)]
-        [int]$checkId,
+        [string]$checkId,
         [Parameter(Mandatory=$true)]
         [int]$subtotalAmount,
         [Parameter(Mandatory=$true)]
@@ -871,13 +872,13 @@ function Send-LevelUpReceiptScan{
     $currentDateTime = Get-Date -format "yyyy-MM-ddTHH:mm"
     $receiptScan = @{
         'receipt_scan' = @{
-            'campaign_ids' = $campaignIds;
-            'location_id' = $locationId;
+            'campaign_ids' = $campaignIds;  # Campaigns must be a type that can be forwarded and active at location
+            'location_id' = $locationId;  # Location must be running the campaigns specified above
             'check_identifier' = $checkId;
             'scan_reason' = 'I am making a test!';
             'receipt_at' = $currentDateTime;
             'subtotal_amount' = $subtotalAmount;
-            'image_url' = $urlToPhoto;
+            'image_url' = $urlToPhoto;  # Url to photo on any publicly shared hosting service (e.g. dropbox, google etc.)
         }
     }
 
@@ -889,7 +890,7 @@ function Send-LevelUpReceiptScan{
 
     $response = Submit-PostRequest -uri $theURI -accessToken $accessToken -body $body
 
-    return $response.StatusCode
+    return $response.StatusCode # HTTP status 204 [No content] indicates success
 }
 
 #################################
