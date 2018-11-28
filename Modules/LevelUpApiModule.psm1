@@ -299,7 +299,7 @@ function Submit-LevelUpProposedOrder {
         [Parameter(Mandatory=$true)]
         [int]$spendAmount,
         [int]$taxAmount=0,
-        [bool]$partialAuthAllowed=$true
+        [switch]$partialAuthAllowed
     )
 
     $theURI = $global:baseURI + $v15 + "proposed_orders"
@@ -313,12 +313,12 @@ function Submit-LevelUpProposedOrder {
         "identifier_from_merchant" = "Check #TEST";
         "cashier" = "LevelUp Powershell Script";
         "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
+        "partial_authorization_allowed" = $partialAuthAllowed.IsPresent;
         "items" = Get-LevelUpSampleItemList;
       }
     }
 
-    $body = $proposed_order | ConvertTo-Json -Depth 5
+    $body = $proposed_order | ConvertTo-Json -Depth 10
 
     $accessToken = "merchant=" + $merchantAccessToken
 
@@ -348,7 +348,7 @@ function Submit-LevelUpCompleteOrder {
 
         [int]$taxAmount=0,
 
-        [bool]$partialAuthAllowed=$true,
+        [switch]$partialAuthAllowed,
 
         [int]$exemptionAmount=0
     )
@@ -367,12 +367,12 @@ function Submit-LevelUpCompleteOrder {
         "identifier_from_merchant" = "Check #TEST";
         "cashier" = "LevelUp Powershell Script";
         "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
+        "partial_authorization_allowed" = $partialAuthAllowed.IsPresent;
         "items" = Get-LevelUpSampleItemList;
       }
     }
 
-    $body = $completed_order | ConvertTo-Json -Depth 5
+    $body = $completed_order | ConvertTo-Json -Depth 10
 
     $accessToken = "merchant=" + $merchantAccessToken
     $response = Submit-PostRequest $theURI $body $accessToken
@@ -404,7 +404,7 @@ function Submit-LevelUpOrder {
         [Nullable[int]]$availableGiftCard = $null,
 
         [Parameter(Mandatory=$false)]
-        [bool]$partialAuthAllowed = $false
+        [switch]$partialAuthAllowed
     )
     $theURI = $global:uri + "orders"
 
@@ -418,12 +418,12 @@ function Submit-LevelUpOrder {
         "identifier_from_merchant" = "Check #TEST";
         "cashier" = "LevelUp Powershell Script";
         "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
+        "partial_authorization_allowed" = $partialAuthAllowed.IsPresent;
         "items" = Get-LevelUpSampleItemList;
       }
     }
 
-    $body = $order | ConvertTo-Json -Depth 5
+    $body = $order | ConvertTo-Json -Depth 10
 
     # Access token for orders endpoint depends on API version
     $accessToken = $merchantAccessToken
@@ -1241,10 +1241,16 @@ function Create-Uri {
 }
 
 function Get-LevelUpSampleItemList() {
-    $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 0 7
-    $item2 = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 100 1
+    $gravy = Format-LevelUpItem -name "Gibblet Gravy" -description "Gravy for your sprockets" -category "Sauces" -upc "111" -sku "0101" -chargedPriceAmount 50 -quantity 1 -children $null
+    $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 999 7 -children @($gravy)
+    $whupped = Format-LevelUpItem -name "Whupped Cream" -description "Cream thats been given a whuppin" -category "toppings" -upc $null -sku $null -quantity 1 -children $null -chargedPriceAmount 10
+    $item2 = Format-LevelUpItem -name "Pumpkin Pie On Pumpernickel" -description "A toasty pumpernickel dessert snack" -category "desserts" -upc $null -sku $null -chargedPriceAmount 499 -quantity 1 -children @($whupped)
+    $hot = Format-LevelUpItem -name "Secret Armadillo" -description "hot Hot HOT sauce!" -category "Sauces" -upc $null -sku '666' -chargedPriceAmount 0 -quantity 2 -children $null
+    $soylent = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 550 1 -children @($hot)
+    $bepis = Format-LevelUpItem -name "Bepis!" -description "The Thirst Quoncher!" -category "Bevs" -upc 123321 -sku 777 -chargedPriceAmount 199 -quantity 1 -children $null
+    $combo = Format-LevelUpItem -name "Lunch Special" -description "C-C-C-Combo!" -category "Combos" -upc $null -sku '2' -chargedPriceAmount 0 -quantity 1 -children @($soylent, $bepis)
 
-    return @($item1,$item2)
+    return @($item1, $item2, $combo)
 }
 
 function Get-LevelUpOASampleItemList() {
@@ -1259,12 +1265,13 @@ function Get-LevelUpOASampleItemList() {
     return @($cheese_steak, $chix_pesto)
 }
 
-function Format-LevelUpItem([string]$name, [string]$description, [string]$category, [string]$upc, [string]$sku, [int]$chargedPriceAmount, [int]$quantity = 1) {
+function Format-LevelUpItem([string]$name, [string]$description, [string]$category, [string]$upc, [string]$sku, [int]$chargedPriceAmount, [int]$quantity = 1, [PSObject[]]$children = $null) {
     $item = @{
       "item" = @{
         "name" = $name;
         "description" = $description;
         "category" = $category;
+        "children" = $children;
         "upc" = $upc;
         "sku" = $sku;
         "charged_price_amount" = $chargedPriceAmount;
