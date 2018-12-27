@@ -6,6 +6,7 @@
 $Script:pathToConfig = ("{0}\LevelUpConfig.json" -f $PSScriptRoot)
 
 ## Base Uris ##
+$localhostURI = "http://localhost:5001/"
 $productionBaseURI = "https://api.thelevelup.com/"
 $stagingBaseURI = "https://api.staging-levelup.com/"
 $sandboxBaseURI = "https://sandbox.thelevelup.com/"
@@ -37,7 +38,12 @@ $Script:environment = ''
 [int]$Script:version = ''
 $Script:allowed_fulfillment_types = @('in_store', 'pickup', 'delivery')
 
-$environments = @{"production" = $productionBaseURI; "sandbox" = $sandboxBaseURI; "staging" = $stagingBaseURI }
+$environments = @{
+    "localhost" = $localhostURI;
+    "production" = $productionBaseURI;
+    "sandbox" = $sandboxBaseURI;
+    "staging" = $stagingBaseURI
+}
 
 Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
 
@@ -97,6 +103,10 @@ function Set-LevelUpEnvironment{
         $global:baseURI = $envName
     } else {
         $global:baseURI = $environments[$envName.ToLower()]
+    }
+
+    if(!$global:baseURI.EndsWith('/')) {
+        $global:baseURI += '/'
     }
 
     switch($version) {
@@ -835,7 +845,7 @@ function Get-LevelUpLocationsForApp{
 function Get-LevelUpReceiptScanLocation{
     [cmdletbinding()]
     Param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [string]$userAccessToken = $Script:merchantAccessToken
     )
 
