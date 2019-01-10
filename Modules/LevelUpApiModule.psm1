@@ -2,15 +2,6 @@
 ## PowerShell module for LevelUp API
 ## Copyright(c) 2016 SCVNGR, Inc. d/b/a LevelUp. All rights reserved.
 
-## Config ##
-$Script:pathToConfig = ("{0}\LevelUpConfig.json" -f $PSScriptRoot)
-
-## Base Uris ##
-$localhostURI = "http://localhost:5001/"
-$productionBaseURI = "https://api.thelevelup.com/"
-$stagingBaseURI = "https://api.staging-levelup.com/"
-$sandboxBaseURI = "https://sandbox.thelevelup.com/"
-
 #################
 ## LEVELUP API ##
 #################
@@ -23,26 +14,28 @@ $v14 = "v14/"
 $v15 = "v15/"
 
 $global:ver = $v15
-$global:baseURI = $productionBaseURI
+$global:baseURI = $Script:environments['production']
 $global:uri = $global:baseURI + $global:ver
 
 # Common HTTP Headers not including Authorization Header
 $commonHeaders = @{"Content-Type" = "application/json"; "Accept" = "application/json"}
 
-# Store the merchant access token here
-$Script:merchantAccessToken = ''
 $Script:apiKey = ''
-$Script:username = ''
-$Script:password = ''
 $Script:environment = ''
+$Script:merchantAccessToken = ''
+$Script:serviceAccessToken = ''
+$Script:userAccessToken = ''
+$Script:credentials = $null
 [int]$Script:version = ''
-$Script:allowed_fulfillment_types = @('in_store', 'pickup', 'delivery')
 
-$environments = @{
-    "localhost" = $localhostURI;
-    "production" = $productionBaseURI;
-    "sandbox" = $sandboxBaseURI;
-    "staging" = $stagingBaseURI
+$Script:pathToConfig = ("{0}\LevelUpConfig.json" -f $PSScriptRoot)
+
+$Script:allowed_fulfillment_types = @('in_store', 'pickup', 'delivery')
+$Script:environments = @{
+    localhost = "http://localhost:5001/";
+    production = "https://api.thelevelup.com/";
+    sandbox = "https://sandbox.thelevelup.com/";
+    staging = "https://api.staging-levelup.com/"
 }
 
 Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
@@ -76,9 +69,11 @@ function Get-LevelUpModuleConfig {
         Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
     }
 
-    if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
-    if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
-    if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
+    if(!config.user_access_token -and !config.merchant_access_token) {
+        if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
+        if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
+        if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
+    }
 
     return $config
 }
@@ -97,12 +92,13 @@ function Set-LevelUpEnvironment{
         [int]$version = 15
     )
 
-    if(!$environments.Contains($envName.ToLower())){
-        Write-Host ("WARNING: Invalid entry! Please choose one of the following: [{0}]" -f ($environments.Keys -join ',')) -ForegroundColor Yellow
+    if(!$Script:environments.Contains($envName.ToLower())){
+        Write-Host ("WARNING: Invalid entry! Please choose one of the following: [{0}]" `
+            -f ($Script:environments.Keys -join ',')) -ForegroundColor Yellow
 
         $global:baseURI = $envName
     } else {
-        $global:baseURI = $environments[$envName.ToLower()]
+        $global:baseURI = $Script:environments[$envName.ToLower()]
     }
 
     if(!$global:baseURI.EndsWith('/')) {
@@ -150,26 +146,42 @@ function Load-LevelUpConfig {
     }
 
     if($config) {
+        $Script:merchantAccessToken = $config.merchant_access_token
+        $Script:serviceAccessToken = $config.service_access_token
+        $Script:userAccessToken = $config.user_access_token
         $Script:apiKey = $config.api_key
-        $Script:username = $config.username
-        $Script:password = $config.password
+        $username = $config.username
+        $password = $config.password | ConvertTo-SecureString
         $Script:environment = $config.environment
         $Script:version = $config.version
+        $Script:credentials = [pscredential]::New($username, $password)
     }
 
-    if(!$Script:apiKey) { $Script:apiKey = Read-Host -Prompt 'Api Key' }
-    if(!$Script:username) { $Script:username = Read-Host -Prompt 'Username' }
-    if(!$Script:password) { $Script:password = Read-Host -Prompt 'Password' -AsSecureString }
     if(!$Script:environment) { $Script:environment = Read-Host -Prompt 'Environment' }
     if(!$Script:version) { $Script:version = Read-Host -Prompt 'Version (14|15)' }
 
     Set-LevelUpEnvironment -envName $Script:environment -version $Script:version
 
-    $access = Get-LevelUpAccessToken -apikey $Script:apiKey -username $Script:username -password $Script:password
+    if(!$Script:apiKey) { $Script:apiKey = Read-Host -Prompt 'Api Key' }
 
-    if(!$access) { exit 1 }
+    $access_token = $Script:merchantAccessToken
+    $username = ''
+    $password = ''
 
-    Set-LevelUpAccessToken -token $access.Token
+    if(!$Script:credentials.UserName || !$Script.credentials.Password) {
+        if(!$Script:credentials.UserName) { $username = Read-Host -Prompt 'Username' }
+        if(!$Script:credentials.Password) { $password = Read-Host -Prompt 'Password' -AsSecureString }
+        $Script:credentials = [pscredential]::New($username, $password)
+
+        $access = Get-LevelUpAccessToken -apikey $Script:apiKey `
+            -username $Script:credentials.UserName `
+            -password $Script:credentials.Password
+        $access_token = $access.Token
+    }
+
+    if(!$access_token) { exit 1 }
+
+    Set-LevelUpAccessToken -token $access_token
 
     Write-Host 'Done configuring LevelUp module!' -ForegroundColor Green
 }
@@ -193,7 +205,18 @@ function Get-LevelUpAccessToken {
     [string]$password
     )
 
-    $tokenRequest = @{ "access_token" = @{ "client_id" = $apikey; "username" = $username; "password" = $password } }
+    if($password.GetType().Name -eq 'SecureString') {
+        $psCred = [pscredential]::New($username, $password)
+        $password = $psCred.GetNetworkCredential().Password
+    }
+
+    $tokenRequest = @{
+        access_token = @{
+            client_id = $apikey;
+            username = $username;
+            password = $password
+        }
+    }
 
     $body = $tokenRequest | ConvertTo-Json
 
@@ -289,6 +312,43 @@ function Get-LevelUpLocationDetails {
 }
 
 ## Create Proposed Order ##
+function Submit-GrubHubProposedOrder {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int]$locationId,
+        [Parameter(Mandatory=$true)]
+        [string]$grubhubUserId,
+        [Parameter(Mandatory=$true)]
+        [int]$spendAmount,
+        [int]$taxAmount=0,
+        [string]$fulfillmentType='pickup',
+        [bool]$partialAuthAllowed=$true
+    )
+
+    $theURI = $global:baseURI + $v15 + "grubhub/proposed_orders"
+
+    $proposed_order = Build-ProposedOrderBody -locationId $locationId -qrCode '' `
+        -spendAmount $spendAmount -taxAmount $taxAmount -partialAuthAllowed $partialAuthAllowed
+
+    $proposed_order.proposed_order += @{
+        discount_only = $true;
+        fulfillment_type = $fulfillmentType;
+        rewards_set_uuid = 'blargh';
+        user_id = $grubhubUserId;
+    }
+
+    $body = $proposed_order | ConvertTo-Json -Depth 5
+
+    $accessToken = "service=" + $serviceAccessToken
+
+    $response = Submit-PostRequest -uri $theURI -body $body -accessToken $accessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.proposed_order
+}
+
 function Submit-LevelUpProposedOrder {
     [CmdletBinding()]
     Param(
@@ -304,82 +364,166 @@ function Submit-LevelUpProposedOrder {
 
     $theURI = $global:baseURI + $v15 + "proposed_orders"
 
-    $proposed_order = @{
-      "proposed_order" = @{
-        "location_id" = $locationId;
-        "payment_token_data" = $qrCode;
-        "spend_amount" = $spendAmount;
-        "tax_amount" = $taxAmount;
-        "identifier_from_merchant" = "Check #TEST";
-        "cashier" = "LevelUp Powershell Script";
-        "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
-        "items" = Get-LevelUpSampleItemList;
-      }
-    }
+    $proposed_order = Build-ProposedOrderBody -locationId $locationId -qrCode $qrCode `
+        -spendAmount $spendAmount -taxAmount $taxAmount -partialAuthAllowed $partialAuthAllowed
 
     $body = $proposed_order | ConvertTo-Json -Depth 5
 
     $accessToken = "merchant=" + $merchantAccessToken
 
     $response = Submit-PostRequest -uri $theURI -body $body -accessToken $accessToken
+
     $parsed = $response.Content | ConvertFrom-Json
 
     return $parsed.proposed_order
 }
 
-## Complete Order **
-function Submit-LevelUpCompleteOrder {
+function Build-ProposedOrderBody {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory=$true)]
         [int]$locationId,
-
         [Parameter(Mandatory=$true)]
         [string]$qrCode,
-
-        [Parameter(Mandatory = $true)]
-        [int]$spendAmount,
-
         [Parameter(Mandatory=$true)]
-        [string]$proposedOrderUuid,
-
-        [Nullable[int]]$appliedDiscount=$null,
-
+        [int]$spendAmount,
+        [int]$exemptionAmount=0,
         [int]$taxAmount=0,
-
-        [bool]$partialAuthAllowed=$true,
-
-        [int]$exemptionAmount=0
+        [bool]$partialAuthAllowed=$true
     )
 
-    $theURI = $global:baseURI + $v15 + "completed_orders"
-
-    $completed_order = @{
-      "completed_order" = @{
-        "location_id" = $locationId;
-        "payment_token_data" = $qrCode;
-        "proposed_order_uuid" = $proposedOrderUuid;
-        "applied_discount_amount" = $appliedDiscount;
-        "spend_amount" = $spendAmount;
-        "tax_amount" = $taxAmount;
-        "exemption_amount" = $exemptionAmount;
-        "identifier_from_merchant" = "Check #TEST";
-        "cashier" = "LevelUp Powershell Script";
-        "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
-        "items" = Get-LevelUpSampleItemList;
+    $proposed_order = @{
+      proposed_order = @{
+        cashier = 'LevelUp Powershell Script';
+        exemption_amount = $exemptionAmount;
+        identifier_from_merchant = 'Check # TEST # Check';
+        location_id = $locationId;
+        partial_authorization_allowed = $partialAuthAllowed;
+        payment_token_data = $qrCode;
+        register = '3.14159';
+        spend_amount = $spendAmount;
+        tax_amount = $taxAmount;
+        items = Get-LevelUpSampleItemList;
       }
+    }
+
+    return $proposed_order
+}
+
+## Complete Order ##
+function Submit-GrubHubCompleteOrder {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int]$locationId,
+        [Parameter(Mandatory=$true)]
+        [string]$grubhubUserId,
+        [Parameter(Mandatory = $true)]
+        [int]$spendAmount,
+        [Parameter(Mandatory=$true)]
+        [string]$proposedOrderUuid,
+        [Nullable[int]]$appliedDiscount=$null,
+        [int]$taxAmount=0,
+        [int]$exemptionAmount=0,
+        [string]$fulfillmentType='pickup',
+        [bool]$partialAuthAllowed=$true,
+    )
+
+    $theURI = $global:baseURI + $v15 + "grubhub/completed_orders"
+
+    $completed_order = Build-CompleteOrderBody -locationId $locationId -qrCode '' `
+        -spendAmount $spendAmount -proposedOrderUuid $proposedOrderUuid `
+        -appliedDiscount $appliedDiscount -taxAmount $taxAmount `
+        -partialAuthAllowed $partialAuthAllowed -exemptionAmount $exemptionAmount
+    $completed_order.completed_order += @{
+        discount_only = $true;
+        fulfillment_type = $fulfillmentType;
+        grubhub_order_uuid = $proposed_order_uuid;
+        progress_only = $false;
+        user_id = $grubhubUserId;
     }
 
     $body = $completed_order | ConvertTo-Json -Depth 5
 
-    $accessToken = "merchant=" + $merchantAccessToken
+    $accessToken = "service=" + $serviceAccessToken
+
     $response = Submit-PostRequest $theURI $body $accessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
     return $parsed.order
+}
+
+function Submit-LevelUpCompleteOrder {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int]$locationId,
+        [Parameter(Mandatory=$true)]
+        [string]$qrCode,
+        [Parameter(Mandatory = $true)]
+        [int]$spendAmount,
+        [Parameter(Mandatory=$true)]
+        [string]$proposedOrderUuid,
+        [Nullable[int]]$appliedDiscount=$null,
+        [int]$taxAmount=0,
+        [int]$exemptionAmount=0,
+        [bool]$partialAuthAllowed=$true,
+    )
+
+    $theURI = $global:baseURI + $v15 + "completed_orders"
+
+    $completed_order = Build-CompleteOrderBody -locationId $locationId -qrCode $qrCode `
+        -spendAmount $spendAmount -proposedOrderUuid $proposedOrderUuid `
+        -appliedDiscount $appliedDiscount -taxAmount $taxAmount `
+        -partialAuthAllowed $partialAuthAllowed -exemptionAmount $exemptionAmount
+
+    $body = $completed_order | ConvertTo-Json -Depth 5
+
+    $accessToken = "merchant=" + $merchantAccessToken
+
+    $response = Submit-PostRequest $theURI $body $accessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.order
+}
+
+function Build-CompleteOrderBody {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int]$locationId,
+        [Parameter(Mandatory=$true)]
+        [string]$qrCode,
+        [Parameter(Mandatory = $true)]
+        [int]$spendAmount,
+        [Parameter(Mandatory=$true)]
+        [string]$proposedOrderUuid,
+        [Nullable[int]]$appliedDiscount=$null,
+        [int]$taxAmount=0,
+        [int]$exemptionAmount=0,
+        [bool]$partialAuthAllowed=$true,
+    )
+
+    $completed_order = @{
+      completed_order = @{
+        location_id = $locationId;
+        payment_token_data = $qrCode;
+        proposed_order_uuid = $proposedOrderUuid;
+        applied_discount_amount = $appliedDiscount;
+        spend_amount = $spendAmount;
+        tax_amount = $taxAmount;
+        exemption_amount = $exemptionAmount;
+        identifier_from_merchant = 'Check # TEST # Check';
+        cashier = 'LevelUp Powershell Script';
+        register = '3.14159';
+        partial_authorization_allowed = $partialAuthAllowed;
+        items = Get-LevelUpSampleItemList;
+      }
+    }
+
+    return $completed_order
 }
 
 ## Create Order ##
