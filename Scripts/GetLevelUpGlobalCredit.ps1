@@ -4,21 +4,29 @@ param ()
 import-module ("{0}\..\Modules\LevelUpApiModule.psm1" -f $PSScriptRoot) -Force
 
 $config = Get-LevelUpModuleConfig
+$access_token = $config.user_access_token
+$username = $config.username
 
-if($config.password.GetType().Name -eq 'SecureString') {
-    $config.password = $config.password | ConvertFrom-SecureString
+if(!$access_token) {
+    $psCred = $null
+    if($config.username -and $config.password) {
+        $psCred = [pscredential]::New($config.username,
+            ($config.password | ConvertTo-SecureString))
+    } else {
+        $psCred = Get-Credential
+    }
+
+    $access = Get-LevelUpAccessToken -apikey $config.api_key -username $psCred.UserName -password $psCred.Password
+    $access_token = $access.token
+    $username = $pscred.UserName
 }
 
-$access = Get-LevelUpAccessToken -apikey $config.api_key -username $config.username -password $config.password
+if(!$access_token) { exit 1 }
 
-if(!$access) { exit 1 }
-
-Set-LevelUpAccessToken -token $access.token
-
-$amount = Get-LevelUpGlobalCreditForUser -userId $access.user_id
+$amount = Get-LevelUpGlobalCreditForUser -userAccessToken $access_token
 
 $char = "+"
-$userStr = (" {0}" -f $config.username)
+$userStr = (" {0}" -f $username)
 $msg1 = " has"
 $amountStr = " {0}{1} {2}" -f $amount.currency_symbol, $amount.formatted_amount, $amount.currency_code
 $msg2 = " in global credit "
