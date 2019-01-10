@@ -1,5 +1,4 @@
-﻿[cmdletbinding()]
-## PowerShell module for LevelUp API
+﻿## PowerShell module for LevelUp API
 ## Copyright(c) 2016 SCVNGR, Inc. d/b/a LevelUp. All rights reserved.
 
 #################
@@ -12,6 +11,16 @@
 $v13 = "v13/"
 $v14 = "v14/"
 $v15 = "v15/"
+
+$Script:pathToConfig = ("{0}\LevelUpConfig.json" -f $PSScriptRoot)
+
+$Script:allowed_fulfillment_types = @('in_store', 'pickup', 'delivery')
+$Script:environments = @{
+    localhost = "http://localhost:5001/";
+    production = "https://api.thelevelup.com/";
+    sandbox = "https://sandbox.thelevelup.com/";
+    staging = "https://api.staging-levelup.com/"
+}
 
 $global:ver = $v15
 $global:baseURI = $Script:environments['production']
@@ -28,15 +37,7 @@ $Script:userAccessToken = ''
 $Script:credentials = $null
 [int]$Script:version = ''
 
-$Script:pathToConfig = ("{0}\LevelUpConfig.json" -f $PSScriptRoot)
 
-$Script:allowed_fulfillment_types = @('in_store', 'pickup', 'delivery')
-$Script:environments = @{
-    localhost = "http://localhost:5001/";
-    production = "https://api.thelevelup.com/";
-    sandbox = "https://sandbox.thelevelup.com/";
-    staging = "https://api.staging-levelup.com/"
-}
 
 Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
 
@@ -69,7 +70,7 @@ function Get-LevelUpModuleConfig {
         Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
     }
 
-    if(!config.user_access_token -and !config.merchant_access_token) {
+    if(!$config.user_access_token -and !$config.merchant_access_token) {
         if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
         if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
         if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
@@ -168,7 +169,7 @@ function Load-LevelUpConfig {
     $username = ''
     $password = ''
 
-    if(!$Script:credentials.UserName || !$Script.credentials.Password) {
+    if(!$Script:credentials.UserName -or !$Script:credentials.Password) {
         if(!$Script:credentials.UserName) { $username = Read-Host -Prompt 'Username' }
         if(!$Script:credentials.Password) { $password = Read-Host -Prompt 'Password' -AsSecureString }
         $Script:credentials = [pscredential]::New($username, $password)
@@ -426,7 +427,7 @@ function Submit-GrubHubCompleteOrder {
         [int]$taxAmount=0,
         [int]$exemptionAmount=0,
         [string]$fulfillmentType='pickup',
-        [bool]$partialAuthAllowed=$true,
+        [bool]$partialAuthAllowed=$true
     )
 
     $theURI = $global:baseURI + $v15 + "grubhub/completed_orders"
@@ -468,7 +469,7 @@ function Submit-LevelUpCompleteOrder {
         [Nullable[int]]$appliedDiscount=$null,
         [int]$taxAmount=0,
         [int]$exemptionAmount=0,
-        [bool]$partialAuthAllowed=$true,
+        [bool]$partialAuthAllowed=$true
     )
 
     $theURI = $global:baseURI + $v15 + "completed_orders"
@@ -503,7 +504,7 @@ function Build-CompleteOrderBody {
         [Nullable[int]]$appliedDiscount=$null,
         [int]$taxAmount=0,
         [int]$exemptionAmount=0,
-        [bool]$partialAuthAllowed=$true,
+        [bool]$partialAuthAllowed=$true
     )
 
     $completed_order = @{
@@ -816,41 +817,49 @@ function Get-LevelUpMerchantCredit {
 }
 
 ## Get Available Global Credit for User ##
-function Get-LevelUpGlobalCreditForUser {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [int]$userId,
-        [Parameter(Mandatory=$false)]
-        [string]$userAccessToken = $Script:merchantAccessToken
-    )
-    # v13 only! See http://agbaber.github.io/ for documentation
-    $theUri = "{0}{1}users/{2}.json?access_token={3}" -f $global:baseURI, $v13, $userId, $userAccessToken
+# function Get-LevelUpGlobalCreditForUser {
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory=$true)]
+#         [int]$userId,
+#         [Parameter(Mandatory=$false)]
+#         [string]$userAccessToken = $Script:merchantAccessToken
+#     )
+#     # v13 only! See http://agbaber.github.io/ for documentation
+#     $theUri = "{0}{1}users/{2}.json?access_token={3}" -f $global:baseURI, $v13, $userId, $userAccessToken
 
-    $response = Submit-GetRequest $theUri $userAccessToken
+#     $response = Submit-GetRequest $theUri $userAccessToken
+
+#     $parsed = $response.Content | ConvertFrom-Json
+
+#     return $parsed.user.credit
+# }
+
+function Get-LevelUpGlobalCreditForUser {
+    [cmdletbinding()]
+    param(
+        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory=$false)]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}users" -f ($global:baseURI + $v15)
+
+    $accessToken = "user=" + $userAccessToken
+
+    $response = Submit-GetRequest $theUri $accessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
-    return $parsed.user.credit
-}
+    $cents = $parsed.user.global_credit_amount
+    $props = @{
+        amount = $cents;
+        currency_code = 'USD';
+        currency_symbol = '$';
+        formatted_amount = $cents/100;
+    }
 
-## Get Available Global Credit for User ##
-#function Get-LevelUpGlobalCreditForUser([string]$userAccessToken = $Script:merchantAccessToken) {
-#    [cmdletbinding()]
-#    param(
-#        [ValidateNotNullOrEmpty()]
-#        [Parameter(Mandatory=$false)]
-#        [string]$userAccessToken = $Script:merchantAccessToken
-#    )
-#    $theUri = "{0}users" -f ($global:baseURI + $v15)
-#    $accessToken = "user=" + $userAccessToken
-#
-#    $response = Submit-GetRequest $theUri $accessToken
-#
-#    $parsed = $response.Content | ConvertFrom-Json
-#
-#    return $parsed.user.global_credit_amount
-#}
+    return New-Object psobject -Property $props
+}
 
 ## Get Recent Orders At Location ##
 function Get-LevelUpOrdersByLocation {
