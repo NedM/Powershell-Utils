@@ -325,7 +325,7 @@ function Submit-GrubHubProposedOrder {
         [Parameter(Mandatory=$true)]
         [int]$locationId,
         [Parameter(Mandatory=$true)]
-        [string]$grubhubUserId,
+        [string]$userId,
         [Parameter(Mandatory=$true)]
         [int]$spendAmount,
         [int]$taxAmount=0,
@@ -345,7 +345,7 @@ function Submit-GrubHubProposedOrder {
             rewards_set_uuid              = 'blargh';
             spend_amount                  = $spendAmount;
             tax_amount                    = $taxAmount;
-            user_id                       = $grubhubUserId;
+            user_id                       = $userId;
             items                         = Get-LevelUpSampleItemList;
         }
     }
@@ -409,7 +409,7 @@ function Submit-GrubHubCompleteOrder {
         [Parameter(Mandatory=$true)]
         [int]$locationId,
         [Parameter(Mandatory=$true)]
-        [string]$grubhubUserId,
+        [string]$userId,
         [Parameter(Mandatory = $true)]
         [int]$spendAmount,
         [Parameter(Mandatory=$true)]
@@ -429,8 +429,8 @@ function Submit-GrubHubCompleteOrder {
             discount_only = $true;
             exemption_amount = $exemptionAmount;
             fulfillment_type = $fulfillmentType;
-            grubhub_order_uuid = $proposed_order_uuid;
-            user_id = $grubhubUserId;
+            grubhub_order_uuid = $proposedOrderUuid;
+            user_id = $userId;
             location_id = $locationId;
             partial_authorization_allowed = $partialAuthAllowed;
             progress_only = $false;
