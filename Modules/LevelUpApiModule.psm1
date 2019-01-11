@@ -526,17 +526,17 @@ function Submit-LevelUpOrder {
     $theURI = $global:uri + "orders"
 
     $order = @{
-      "order" = @{
-        "location_id" = $locationId;
-        "payment_token_data" = $qrCode;
-        "spend_amount" = $spendAmount;
-        "applied_discount_amount" = $appliedDiscount;
-        "available_gift_card_amount" = $availableGiftCard;
-        "identifier_from_merchant" = "Check #TEST";
-        "cashier" = "LevelUp Powershell Script";
-        "register" = "3.14159";
-        "partial_authorization_allowed" = $partialAuthAllowed;
-        "items" = Get-LevelUpSampleItemList;
+      order = @{
+        location_id = $locationId;
+        payment_token_data = $qrCode;
+        spend_amount = $spendAmount;
+        applied_discount_amount = $appliedDiscount;
+        available_gift_card_amount = $availableGiftCard;
+        identifier_from_merchant = 'Check # TEST # Check';
+        cashier = "LevelUp Powershell Script";
+        register = "3.14159";
+        partial_authorization_allowed = $partialAuthAllowed;
+        items = Get-LevelUpSampleItemList;
       }
     }
 
@@ -561,7 +561,7 @@ function Get-LevelUpOrdersForUser {
     param(
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [string]$userAccessToken = $Script:merchantAccessToken
+        [string]$userAccessToken = $Script:userAccessToken
     )
     $theURI = "{0}/apps/orders" -f ($global:baseURI + $v15)
 
@@ -640,7 +640,13 @@ function Remove-LevelUpGiftCardValue {
     )
     $theUri = "{0}merchants/{1}/gift_card_value_removals" -f ($global:baseURI + $v15), $merchantId
 
-    $destroyValueRequest = @{ "gift_card_value_removal" = @{ "payment_token_data" = $qrData; "value_amount" = $amountToDestroy } }
+    $destroyValueRequest = @{
+        gift_card_value_removal = @{
+            payment_token_data = $qrData;
+            value_amount = $amountToDestroy;
+        }
+    }
+
     $body = $destroyValueRequest | ConvertTo-Json
 
     $response = Submit-PostRequest $theUri $body $merchantAccessToken
@@ -670,15 +676,15 @@ function Remove-LevelUpGiftCardValue {
     )
      $theUri = "{0}users/gift_card_value_orders" -f ($global:baseURI + $v15)
 
-     $createGCOrderRequest = @{
-         "gift_card_value_order" =
-             @{ "value_amount" = $amount;
-                 "web_purchase" = $false;
-                 "recipient_email" = $recipientEmail;
-                 "recipient_message" = $message;
-                 "recipient_name" = $recipientName
-             }
-         }
+    $createGCOrderRequest = @{
+        gift_card_value_order = @{
+            value_amount = $amount;
+            web_purchase = $false;
+            recipient_email = $recipientEmail;
+            recipient_message = $message;
+            recipient_name = $recipientName;
+        }
+    }
 
      $body = $createGCOrderRequest | ConvertTo-Json
 
@@ -707,18 +713,19 @@ function Add-LevelUpMerchantFundedCredit {
     $theUri = "{0}detached_refunds" -f $global:uri
 
     $detachedRefundRequest = @{
-        "detached_refund" = @{
-            "cashier" = "LevelUp Powershell Script";
-            "credit_amount" = $amountToAdd;
-            "customer_facing_reason" = "Sorry about your coffee!";
-            "identifier_from_merchant" = "123abc";
-            "internal_reason" = "Customer did not like his coffee";
-            "location_id" = $locationId;
-            "manager_confirmation" = $null;
-            "payment_token_data" = $qrData;
-            "register" = "3"
-            }
-         }
+        detached_refund = @{
+            cashier = "LevelUp Powershell Script";
+            credit_amount = $amountToAdd;
+            customer_facing_reason = "Sorry about your coffee!";
+            identifier_from_merchant = "123abc";
+            internal_reason = "Customer did not like his coffee";
+            location_id = $locationId;
+            manager_confirmation = $null;
+            payment_token_data = $qrData;
+            register = "3";
+        }
+    }
+
     $body = $detachedRefundRequest | ConvertTo-Json
 
     # Access token for depends on API version
@@ -747,8 +754,8 @@ function Get-LevelUpMerchantGiftCardCredit {
     $theUri = "{0}locations/{1}/get_merchant_funded_gift_card_credit" -f ($global:baseURI+$v15), $locationId
 
     $merchantFundedGiftCardRequest = @{
-        "get_merchant_funded_gift_card_credit" = @{
-            "payment_token_data" = $qrCode
+        get_merchant_funded_gift_card_credit = @{
+            payment_token_data = $qrCode;
         }
     }
 
@@ -1006,14 +1013,14 @@ function Send-LevelUpReceiptScan{
 
     $currentDateTime = Get-Date -format "yyyy-MM-ddTHH:mm"
     $receiptScan = @{
-        'receipt_scan' = @{
-            'campaign_ids' = $campaignIds;  # Campaigns must be a type that can be forwarded and active at location
-            'location_id' = $locationId;  # Location must be running the campaigns specified above
-            'check_identifier' = $checkId;
-            'scan_reason' = 'I am making a test!';
-            'receipt_at' = $currentDateTime;
-            'subtotal_amount' = $subtotalAmount;
-            'image_url' = $urlToPhoto;  # Url to photo on any publicly shared hosting service (e.g. dropbox, google etc.)
+        receipt_scan = @{
+            campaign_ids = $campaignIds;  # Campaigns must be a type that can be forwarded and active at location
+            location_id = $locationId;  # Location must be running the campaigns specified above
+            check_identifier = $checkId;
+            scan_reason = 'I am making a test!';
+            receipt_at = $currentDateTime;
+            subtotal_amount = $subtotalAmount;
+            image_url = $urlToPhoto;  # Url to photo on any publicly shared hosting service (e.g. dropbox, google etc.)
         }
     }
 
@@ -1373,11 +1380,6 @@ function Get-LevelUpSampleItemList() {
 }
 
 function Get-LevelUpOASampleItemList() {
-    # $sprockets = Format-LevelUpOAItem -id 74853984 -quantity 4 -specialItemInstructions 'Roast thoroughly in the heat of active volcano. Lightly sauce on the underside.' -optionIds @(100, 92, 80)
-    # $soylentEggs = Format-LevelUpOAItem -id 74853985 -quantity 2 -specialItemInstructions "I like `'em extra bouncy!" -optionIds @(78)
-
-    # return @($sprockets, $soylentEggs)
-
     $cheese_steak = Format-LevelUpOAItem -id 2139027 -quantity 2 -specialItemInstructions 'Roast thoroughly in the heat of active volcano.' -optionIds $null
     $chix_pesto = Format-LevelUpOAItem -id 2139028 -quantity 1 -specialItemInstructions 'Lightly sauce on the underside during the waning moon.' -optionIds $null
 
