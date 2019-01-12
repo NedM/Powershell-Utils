@@ -8,10 +8,15 @@ $access_token = $config.user_access_token
 $user_id = 30042
 
 if(!$access_token) {
-    $psCred = [pscredential]::New($config.username, ($config.password | ConvertTo-SecureString))
-    $password = $psCred.GetNetworkCredential().Password
+    $psCred = $null
+    if($config.username -and $config.password) {
+        $psCred = [pscredential]::New($config.username,
+            ($config.password | ConvertTo-SecureString))
+    } else {
+        $psCred = Get-Credential
+    }
 
-    $access = Get-LevelUpAccessToken -apikey $config.api_key -username $config.username -password $password
+    $access = Get-LevelUpAccessToken -apikey $config.api_key -username $psCred.UserName -password $psCred.Password
     $access_token = $access.token
     $user_id = $access.user_id
 }

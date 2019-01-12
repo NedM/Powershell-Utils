@@ -42,12 +42,12 @@ Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
 function Get-LevelUpModuleConfig {
     [cmdletbinding()]
     Param(
-        [Parameter(Mandatory = $false)]
-        [Alias('p')]
-        [string]$pathToConfig = $Script:pathToConfig,
-        [Parameter(Mandatory = $false)]
+        [Parameter()]
         [Alias('e')]
-        [string]$environment
+        [string]$environment,
+        [Parameter()]
+        [Alias('p')]
+        [string]$pathToConfig = $Script:pathToConfig
     )
 
     $config = $null
@@ -86,7 +86,7 @@ function Set-LevelUpEnvironment{
     Param(
         [Parameter(Mandatory=$true)]
         [string]$envName,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [int]$version = 15
     )
 
@@ -118,12 +118,12 @@ function Set-LevelUpEnvironment{
 function Load-LevelUpConfigFromFile {
     [cmdletbinding()]
     Param(
-        [Parameter(Mandatory = $false)]
-        [Alias('p')]
-        [string]$pathToConfig = $Script:pathToConfig,
-        [Parameter(Mandatory = $false)]
+        [Parameter()]
         [Alias('e')]
-        [string]$environment
+        [string]$environment,
+        [Parameter()]
+        [Alias('p')]
+        [string]$pathToConfig = $Script:pathToConfig
     )
 
     $config = Get-LevelUpModuleConfig -pathToConfig $pathToConfig -environment $environment
@@ -134,7 +134,7 @@ function Load-LevelUpConfigFromFile {
 function Load-LevelUpConfig {
     [cmdletbinding()]
     Param(
-        [Parameter(Mandatory = $false)]
+        [Parameter()]
         [Alias('c')]
         $config
     )
@@ -166,7 +166,7 @@ function Load-LevelUpConfig {
 
     if(!$Script:apiKey) { $Script:apiKey = Read-Host -Prompt 'Api Key' }
 
-    $access_token = $Script:merchantAccessToken
+    $access_token = $Script:userAccessToken
     $username = ''
     $password = ''
 
@@ -185,7 +185,11 @@ function Load-LevelUpConfig {
 
     if(!$access_token) { exit 1 }
 
-    Set-LevelUpAccessToken -token $access_token
+    if(!$Script:merchantAccessToken) { $Script:merchantAccessToken = $access_token }
+    if(!$Script:userAccessToken) { $Script:userAccessToken = $access_token }
+
+    Set-LevelUpAccessTokens -merchantAccessToken $Script:merchantAccessToken `
+        -userAccessToken $Script:userAccessToken -serviceAccessToken $Script:serviceAccessToken
 
     Write-Host 'Done configuring LevelUp module!' -ForegroundColor Green
 }
@@ -198,27 +202,24 @@ function Load-LevelUpConfig {
 function Get-LevelUpAccessToken {
     [cmdletbinding()]
     Param(
-    [ValidateNotNullOrEmpty()]
-    [Parameter(Mandatory=$true)]
-    [string]$apikey,
-    [ValidateNotNullOrEmpty()]
-    [Parameter(Mandatory=$true)]
-    [string]$username,
-    [ValidateNotNullOrEmpty()]
-    [Parameter(Mandatory=$true)]
-    [string]$password
+        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory=$true)]
+        [string]$apikey,
+        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory=$true)]
+        [string]$username,
+        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory=$true)]
+        [System.Security.SecureString]$password
     )
 
-    if($password.GetType().Name -eq 'SecureString') {
-        $psCred = [pscredential]::New($username, $password)
-        $password = $psCred.GetNetworkCredential().Password
-    }
+    $psCred = [pscredential]::New($username, $password)
 
     $tokenRequest = @{
         access_token = @{
             client_id = $apikey;
             username = $username;
-            password = $password
+            password = $psCred.GetNetworkCredential().Password;
         }
     }
 
@@ -239,7 +240,7 @@ function Add-LevelUpAuthorizationHeader {
     Param(
         [Parameter(Mandatory=$true)]
         [string]$token,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [Hashtable]$headers = $commonHeaders
     )
 
@@ -247,7 +248,7 @@ function Add-LevelUpAuthorizationHeader {
     $tokenString = "token"
 
     $newHeaders = @{}
-    if ($headers -ne $null) {
+    if ($headers) {
         $newHeaders += $headers
     }
 
@@ -261,13 +262,19 @@ function Add-LevelUpAuthorizationHeader {
 }
 
 # Set the LevelUp acceess token value used within the Authorization Header
-function Set-LevelUpAccessToken {
+function Set-LevelUpAccessTokens {
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true)]
-        [string]$token
+        [Parameter()]
+        [string]$merchantAccessToken,
+        [Parameter()]
+        [string]$serviceAccessToken,
+        [Parameter()]
+        [string]$userAccessToken
      )
-    $Script:merchantAccessToken = $token
+     if($merchantAccessToken) { $Script:merchantAccessToken = $merchantAccessToken }
+     if($serviceAccessToken) { $Script:serviceAccessToken = $serviceAccessToken }
+     if($userAccessToken) { $Script:userAccessToken = $userAccessToken }
 }
 
 ## Get Merchant Locations ##
@@ -275,12 +282,14 @@ function Get-LevelUpMerchantLocations {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory=$true)]
-        [int]$merchantId
+        [int]$merchantId,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
 
     $theURI = $Script:uri + "merchants/$merchantId/locations"
 
-    $response = Submit-GetRequest $theURI $merchantAccessToken
+    $response = Submit-GetRequest -uri $theURI -accessToken $merchantAccessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -289,7 +298,10 @@ function Get-LevelUpMerchantLocations {
 
 function Get-LevelUpManagedLocations {
     [CmdletBinding()]
-    Param()
+    Param(
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
+    )
 
     $theUri = $Script:baseURI + $v15 + "managed_locations"
 
@@ -325,9 +337,14 @@ function Submit-GrubHubProposedOrder {
         [string]$userId,
         [Parameter(Mandatory=$true)]
         [int]$spendAmount,
-        [int]$taxAmount=0,
-        [string]$fulfillmentType='pickup',
-        [bool]$partialAuthAllowed=$true
+        [Parameter()]
+        [int]$taxAmount = 0,
+        [Parameter()]
+        [string]$fulfillmentType = 'pickup',
+        [Parameter()]
+        [bool]$partialAuthAllowed = $true,
+        [Parameter()]
+        [string]$grubhubServiceAccessToken = $Script:serviceAccessToken
     )
 
     $theURI = $Script:baseURI + "grubhub/proposed_orders"
@@ -339,7 +356,7 @@ function Submit-GrubHubProposedOrder {
             fulfillment_type              = $fulfillmentType;
             location_id                   = $locationId;
             partial_authorization_allowed = $partialAuthAllowed;
-            rewards_set_uuid              = 'blargh';
+            rewards_set_uuid              = $null;
             spend_amount                  = $spendAmount;
             tax_amount                    = $taxAmount;
             user_id                       = $userId;
@@ -349,7 +366,7 @@ function Submit-GrubHubProposedOrder {
 
     $body = $proposed_order | ConvertTo-Json -Depth 5
 
-    $accessToken = "service=" + $serviceAccessToken
+    $accessToken = "service=" + $grubhubServiceAccessToken
 
     $response = Submit-PostRequest -uri $theURI -body $body -accessToken $accessToken
 
@@ -367,8 +384,12 @@ function Submit-LevelUpProposedOrder {
         [string]$qrCode,
         [Parameter(Mandatory=$true)]
         [int]$spendAmount,
-        [int]$taxAmount=0,
-        [bool]$partialAuthAllowed=$true
+        [Parameter()]
+        [int]$taxAmount = 0,
+        [Parameter()]
+        [bool]$partialAuthAllowed = $true,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
 
     $theURI = $Script:baseURI + $v15 + "proposed_orders"
@@ -411,11 +432,18 @@ function Submit-GrubHubCompleteOrder {
         [int]$spendAmount,
         [Parameter(Mandatory=$true)]
         [string]$proposedOrderUuid,
+        [Parameter()]
         [Nullable[int]]$appliedDiscount=$null,
+        [Parameter()]
         [int]$taxAmount=0,
+        [Parameter()]
         [int]$exemptionAmount=0,
+        [Parameter()]
         [string]$fulfillmentType='pickup',
-        [bool]$partialAuthAllowed=$true
+        [Parameter()]
+        [bool]$partialAuthAllowed=$true,
+        [Parameter()]
+        [string]$grubhubServiceAccessToken = $Script:serviceAccessToken
     )
 
     $theURI = $Script:baseURI + "grubhub/completed_orders"
@@ -440,7 +468,7 @@ function Submit-GrubHubCompleteOrder {
 
     $body = $completed_order | ConvertTo-Json -Depth 5
 
-    $accessToken = "service=" + $serviceAccessToken
+    $accessToken = "service=" + $grubhubServiceAccessToken
 
     $response = Submit-PostRequest $theURI $body $accessToken
 
@@ -460,10 +488,16 @@ function Submit-LevelUpCompleteOrder {
         [int]$spendAmount,
         [Parameter(Mandatory=$true)]
         [string]$proposedOrderUuid,
+        [Parameter()]
         [Nullable[int]]$appliedDiscount=$null,
-        [int]$taxAmount=0,
-        [int]$exemptionAmount=0,
-        [bool]$partialAuthAllowed=$true
+        [Parameter()]
+        [int]$taxAmount = 0,
+        [Parameter()]
+        [int]$exemptionAmount = 0,
+        [Parameter()]
+        [bool]$partialAuthAllowed = $true,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
 
     $theURI = $Script:baseURI + $v15 + "completed_orders"
@@ -503,23 +537,21 @@ function Submit-LevelUpOrder {
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [int]$locationId,
-
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [string]$qrCode,
-
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [int]$spendAmount = 1,
-
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [Nullable[int]]$appliedDiscount = $null,
-
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [Nullable[int]]$availableGiftCard = $null,
-
-        [Parameter(Mandatory=$false)]
-        [bool]$partialAuthAllowed = $false
+        [Parameter()]
+        [bool]$partialAuthAllowed = $false,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
+
     $theURI = $Script:uri + "orders"
 
     $order = @{
@@ -557,7 +589,7 @@ function Get-LevelUpOrdersForUser {
     [CmdletBinding()]
     param(
         [ValidateNotNullOrEmpty()]
-        [Parameter(Mandatory=$true)]
+        [Parameter()]
         [string]$userAccessToken = $Script:userAccessToken
     )
     $theURI = "{0}/apps/orders" -f ($Script:baseURI + $v15)
@@ -575,11 +607,16 @@ function Undo-LevelUpOrder {
     param(
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [string]$orderId
+        [string]$orderId,
+        [Parameter()]
+        [string]$managerConfirmation = $null,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theURI = "{0}orders/{1}/refund" -f $Script:uri, $orderId
 
-    $refundRequest = @{"refund" = @{"manager_confirmation" = $null } }
+    $refundRequest = @{ refund = @{ manager_confirmation = $managerConfirmation } }
+
     $body = $refundRequest | ConvertTo-Json
 
     # Access token for refund endpoint depends on API version
@@ -588,7 +625,7 @@ function Undo-LevelUpOrder {
         $accessToken = "merchant=" + $merchantAccessToken
     }
 
-    $response = Submit-PostRequest $theURI $null $accessToken
+    $response = Submit-PostRequest -uri $theURI -body $body -accessToken $accessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -607,14 +644,22 @@ function Add-LevelUpGiftCardValue {
         [string]$qrData,
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [int]$amountToAdd
+        [int]$amountToAdd,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theUri = "{0}merchants/{1}/gift_card_value_additions" -f ($Script:baseURI + $v15), $merchantId
 
-    $addValueRequest = @{ "gift_card_value_addition" = @{ "payment_token_data" = $qrData; "value_amount" = $amountToAdd } }
+    $addValueRequest = @{
+        gift_card_value_addition = @{
+            payment_token_data = $qrData;
+            value_amount = $amountToAdd
+        }
+    }
+
     $body = $addValueRequest | ConvertTo-Json
 
-    $response = Submit-PostRequest $theUri $body $merchantAccessToken
+    $response = Submit-PostRequest -uri $theUri -body $body -accessToken $merchantAccessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -633,7 +678,9 @@ function Remove-LevelUpGiftCardValue {
         [string]$qrData,
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [int]$amountToDestroy
+        [int]$amountToDestroy,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theUri = "{0}merchants/{1}/gift_card_value_removals" -f ($Script:baseURI + $v15), $merchantId
 
@@ -646,7 +693,7 @@ function Remove-LevelUpGiftCardValue {
 
     $body = $destroyValueRequest | ConvertTo-Json
 
-    $response = Submit-PostRequest $theUri $body $merchantAccessToken
+    $response = Submit-PostRequest -uri $theUri -body $body -accessToken $merchantAccessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -660,16 +707,15 @@ function Remove-LevelUpGiftCardValue {
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [int]$amount,
-
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [string]$recipientEmail,
-
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string]$recipientName,
-
-        [Parameter(Mandatory=$false)]
-        [string]$message
+        [Parameter()]
+        [string]$message,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
      $theUri = "{0}users/gift_card_value_orders" -f ($Script:baseURI + $v15)
 
@@ -699,14 +745,15 @@ function Add-LevelUpMerchantFundedCredit {
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [int]$locationId,
-
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [string]$qrData,
-
         [Parameter(Mandatory=$true)]
-        [int]$amountToAdd
+        [int]$amountToAdd,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
+
     $theUri = "{0}detached_refunds" -f $Script:uri
 
     $detachedRefundRequest = @{
@@ -731,7 +778,7 @@ function Add-LevelUpMerchantFundedCredit {
         $accessToken = "merchant=" + $merchantAccessToken
     }
 
-    $response = Submit-PostRequest $theUri $body $accessToken
+    $response = Submit-PostRequest -uri $theUri -body $body -accessToken $accessToken
 
     $parsed = $response | ConvertFrom-Json
 
@@ -746,7 +793,9 @@ function Get-LevelUpMerchantGiftCardCredit {
         [int]$locationId,
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [string]$qrCode
+        [string]$qrCode,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theUri = "{0}locations/{1}/get_merchant_funded_gift_card_credit" -f ($Script:baseURI+$v15), $locationId
 
@@ -760,7 +809,7 @@ function Get-LevelUpMerchantGiftCardCredit {
 
     $accessToken = "merchant=" + $merchantAccessToken
 
-    $response = Submit-PostRequest $theUri $body $accessToken
+    $response = Submit-PostRequest -uri $theUri -body $body -accessToken $accessToken
 
     $parsed = $response | ConvertFrom-Json
 
@@ -775,7 +824,9 @@ function Get-LevelUpMerchantCredit {
         [int]$locationId,
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [string]$qrCode
+        [string]$qrCode,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theUri = "{0}locations/{1}/merchant_funded_credit?payment_token_data={2}" -f $Script:uri, $locationId, $qrCode
 
@@ -815,7 +866,7 @@ function Get-LevelUpGlobalCreditForUser {
     [cmdletbinding()]
     param(
         [ValidateNotNullOrEmpty()]
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string]$userAccessToken = $Script:userAccessToken
     )
     $theUri = "{0}users" -f ($Script:baseURI + $v15)
@@ -843,12 +894,13 @@ function Get-LevelUpOrdersByLocation {
     Param(
         [Parameter(Mandatory=$true)]
         [int]$locationId,
-
         [Parameter()]
         [Nullable[DateTime]]$startDate = $null,
-
         [Parameter()]
-        [Nullable[DateTime]]$endDate = $null)
+        [Nullable[DateTime]]$endDate = $null,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
+    )
 
     if($startDate -and $endDate -and $endDate -lt $startDate) {
         Write-Error ("End Date: {0} cannot be prior to Start Date: {1}" -f $endDate.ToShortDateString(), $startDate.ToShortDateString())
@@ -926,10 +978,11 @@ function Get-LevelUpOrderDetailsForMerchant {
     Param(
         [Parameter(Mandatory=$true)]
         [int]$merchantId,
-
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
-        [string]$orderId
+        [string]$orderId,
+        [Parameter()]
+        [string]$merchantAccessToken = $Script:merchantAccessToken
     )
     $theURI = "{0}merchants/{1}/orders/{2}" -f $Script:uri, $merchantId, $orderId
 
@@ -946,14 +999,14 @@ function Get-LevelUpLocationsForApp{
     Param(
         [Parameter(Mandatory=$true)]
         [int]$appId,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string[]]$fulfillmentTypes = @("pickup", "in_store", "delivery"),
-        [Parameter(Mandatory=$false)]
-        [float]$lat=42.355884,
-        [Parameter(Mandatory=$false)]
-        [float]$lng=-71.056926,
-        [Parameter(Mandatory=$false)]
-        [int]$page=0
+        [Parameter()]
+        [float]$lat = 42.355884,
+        [Parameter()]
+        [float]$lng = -71.056926,
+        [Parameter()]
+        [int]$page = 0
     )
 
     $fulfillmentTypeString = $fulfillmentTypes -join ','
@@ -974,7 +1027,7 @@ function Get-LevelUpLocationsForApp{
 function Get-LevelUpReceiptScanLocation{
     [cmdletbinding()]
     Param(
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string]$userAccessToken = $Script:merchantAccessToken
     )
 
@@ -1004,8 +1057,8 @@ function Send-LevelUpReceiptScan{
         [int]$subtotalAmount,
         [Parameter(Mandatory=$true)]
         [string]$urlToPhoto,
-        [Parameter(Mandatory=$true)]
-        [string]$userAccessToken
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
 
     $currentDateTime = Get-Date -format "yyyy-MM-ddTHH:mm"
@@ -1037,7 +1090,7 @@ function Send-LevelUpReceiptScan{
 #################################
 
 # Get Menu
-function Get-LevelUpOAMenu{
+function Get-LevelUpOAMenu {
     [cmdletbinding()]
     param(
         [ValidateNotNullOrEmpty()]
@@ -1061,22 +1114,25 @@ function Complete-LevelUpOAOrderById {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$orderUuid
+        [string]$orderUuid,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    return Complete-LevelUpOAOrder -userToken $userToken -url ("{0}order_ahead/order/{1}/complete" -f ($Script:baseURI+$v15), $orderUuid)
+
+    $theUri = ("{0}order_ahead/order/{1}/complete" -f ($Script:baseURI+$v15), $orderUuid)
+
+    return Complete-LevelUpOAOrder -url $theUri -userAccessToken $userAccessToken
 }
 
 function Complete-LevelUpOAOrder {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$url
+        [string]$url,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    $accessToken = ("user={0}" -f $userToken)
+    $accessToken = ("user={0}" -f $userAccessToken)
 
     $response = Submit-PostRequest -uri $url -headers $commonHeaders -body $null -accessToken $accessToken
 
@@ -1085,26 +1141,29 @@ function Complete-LevelUpOAOrder {
     return $parsed.order
 }
 
-function Get-LevelUpOACompletedOrderStatus {
+function Get-LevelUpOACompletedOrderStatusById {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$orderUuid
+        [string]$orderUuid,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    return Get-LevelUpOACompletedOrderStatus -userToken $userToken -url ("{0}order_ahead/order/{1}/complete" -f ($Script:baseURI+$v15), $orderUuid)
+
+    $theUri = ("{0}order_ahead/order/{1}/complete" -f ($Script:baseURI+$v15), $orderUuid)
+
+    return Get-LevelUpOACompletedOrderStatus -url $theUri -userAccessToken $userAccessToken
 }
 
 function Get-LevelUpOACompletedOrderStatus {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$url
+        [string]$url,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    $accessToken = ("user={0}" -f $userToken)
+    $accessToken = ("user={0}" -f $userAccessToken)
 
     $response = Submit-GetRequest -uri $url -headers $commonHeaders -accessToken $accessToken
 
@@ -1124,22 +1183,25 @@ function Get-LevelUpOAProposedOrderStatusById {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$orderUuid
+        [string]$orderUuid,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    return Get-LevelUpOAProposedOrderStatus -userToken $userToken -url ("{0}order_ahead/order/{1}" -f ($Script:baseURI+$v15), $orderUuid)
+
+    $theUri = "{0}order_ahead/order/{1}" -f ($Script:baseURI+$v15), $orderUuid
+
+    return Get-LevelUpOAProposedOrderStatus -url $theUri -userAccessToken $userAccessToken
 }
 
 function Get-LevelUpOAProposedOrderStatus {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
-        [string]$url
+        [string]$url,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
-    $accessToken = ("user={0}" -f $userToken)
+    $accessToken = ("user={0}" -f $userAccessToken)
 
     $response = Submit-GetRequest -uri $url -headers $commonHeaders -accessToken $accessToken
 
@@ -1159,11 +1221,11 @@ function Get-LevelUpOAProviderInfo {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$serviceToken,
-        [Parameter(Mandatory=$true)]
         [int]$locationId,
-        [Parameter(Mandatory=$false)]
-        [string]$fulfillmentType = 'in_store'
+        [Parameter()]
+        [string]$fulfillmentType = 'in_store',
+        [Parameter()]
+        [string]$serviceToken = $Script:serviceAccessToken
     )
 
     if(-not $Script:allowed_fulfillment_types.Contains($fulfillmentType)) {
@@ -1188,19 +1250,19 @@ function Start-LevelUpOAOrder {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$userToken,
-        [Parameter(Mandatory=$true)]
         [int]$locationId,
         [Parameter(Mandatory=$false)]
         [string]$fulfillment = 'pickup',
         [Parameter(Mandatory=$false)]
         [string]$specialOrderInstructions = 'please place in automat',
         [Parameter(Mandatory=$false)]
-        [int]$tipAmount = 2
+        [int]$tipAmount = 2,
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
     )
     $theUri = "{0}order_ahead/orders" -f ($Script:baseURI+$v15)
 
-    $accessToken = ("user={0}" -f $userToken)
+    $accessToken = ("user={0}" -f $userAccessToken)
 
     $fulfillment = $fulfillment.ToLowerInvariant()
     $allowedFulfillmentTypes = $Script:allowed_fulfillment_types[1..$Script:allowed_fulfillment_types.Length]
@@ -1253,14 +1315,14 @@ function Submit-GetRequest{
         [Parameter(Mandatory=$true)]
         [string]$uri,
         [Parameter(Mandatory=$false)]
-        [string]$accessToken=$null,
+        [string]$accessToken = $null,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers=$commonHeaders
+        [Hashtable]$headers = $commonHeaders
     )
 
     $theHeaders = $headers
     # Add HTTP Authorization header if access token specified
-    if ($accessToken -ne $null -and $accessToken.Length -gt 0) {
+    if ($accessToken) {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
@@ -1289,7 +1351,7 @@ function Submit-PostRequest{
 
     $theHeaders = $headers
     # Add HTTP Authorization header if access token specified
-    if ($accessToken -ne $null -and $accessToken.Length -gt 0) {
+    if ($accessToken) {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
@@ -1318,7 +1380,7 @@ function Submit-PutRequest {
 
     $theHeaders = $headers
     # Add HTTP Authorization header if access token specified
-    if ($accessToken -ne $null -and $accessToken.Length -gt 0) {
+    if ($accessToken) {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
@@ -1341,9 +1403,9 @@ function Create-Uri {
     Param(
         [Parameter(Mandatory=$true)]
         [string]$base,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string]$path = $null,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [Hashtable]$parameters = $null
     )
 
@@ -1362,7 +1424,7 @@ function Create-Uri {
         }
     }
 
-    $uriParts = @($base, $path) | foreach { $_.Trim('/') }
+    $uriParts = @($base, $path) | ForEach-Object { $_.Trim('/') }
     $request = [System.UriBuilder]($uriParts -join '/')
     $request.Query = $params.ToString()
 
