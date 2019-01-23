@@ -1371,27 +1371,35 @@ function HandleWebException {
 
     if(!$exception.Response) {
         Write-Host $exception -ForegroundColor Red
-        return 1;
+        break
     }
 
     $statusCode = [int]$exception.Response.StatusCode
     $statusDescription = $exception.Response.StatusDescription
     Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
 
-    # Get the response body as JSON
-    $responseStream = $exception.Response.GetResponseStream()
-    $reader = New-Object System.IO.StreamReader($responseStream)
-    $global:responseBody = $reader.ReadToEnd()
+    $responseStream = $null
+    try {
+        # Get the response body as JSON
+        $responseStream = $exception.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($responseStream)
+        $global:responseBody = $reader.ReadToEnd()
     
-    if($global:responseBody) {
-        Write-Host "Error message:" -ForegroundColor:DarkGray
-        try {
-            $json = $global:responseBody | ConvertFrom-JSON
-            $json | ForEach-Object { Write-Host  "`t$_.error.message" -ForegroundColor:DarkGray }
+        if($global:responseBody) {
+            Write-Host "Error message:" -ForegroundColor:DarkGray
+            try {
+                $json = $global:responseBody | ConvertFrom-JSON
+                $json | ForEach-Object { Write-Host  "`t$_.error.message" -ForegroundColor:DarkGray }
+            }
+            catch {
+                # Just output the body as raw data
+                Write-Host $global:responseBody -ForegroundColor:DarkGray
+            }
         }
-        catch {
-            # Just output the body as raw data
-            Write-Host $global:responseBody -ForegroundColor:DarkGray
+    } finally {
+        if($responseStream) {
+            $responseStream.Close()
+            $responseStream.Dispose()
         }
     }
     break
