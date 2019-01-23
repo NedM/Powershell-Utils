@@ -1389,7 +1389,7 @@ function HandleWebException {
             Write-Host "Error message:" -ForegroundColor:DarkGray
             try {
                 $json = $global:responseBody | ConvertFrom-JSON
-                $json | ForEach-Object { Write-Host  "`t$_.error.message" -ForegroundColor:DarkGray }
+                $json | ForEach-Object { Write-Host  "`t" $_.error.message -ForegroundColor:DarkGray }
             }
             catch {
                 # Just output the body as raw data
