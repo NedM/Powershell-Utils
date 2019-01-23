@@ -1143,13 +1143,15 @@ function Submit-GetRequest{
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose "Calling GET on $uri"
+    Write-Verbose "Calling +[GET]+ on $uri"
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
     }
     catch [System.Net.WebException] {
-        Write-Verbose ("++ GET ++`nUrl: {0}`n" -f $uri)
         HandleWebException($_.Exception)
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        HandleHttpResponseException($_.Exception)
     }
 }
 
@@ -1172,13 +1174,15 @@ function Submit-PostRequest{
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling POST on {0}`nBody:`n{1}`n" -f $uri, $body)
+    Write-Verbose ("Calling +[POST]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $theHeaders
     }
     catch [System.Net.WebException] {
-        Write-Verbose ("++ POST ++`nUrl: {0}`nBody:`n{1}`n" -f $uri, $body)
         HandleWebException($_.Exception)
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        HandleHttpResponseException($_.Exception)
     }
 }
 
@@ -1201,13 +1205,15 @@ function Submit-PutRequest {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling PUT on {0}`nBody:`n{1}`n" -f $uri, $body)
+    Write-Verbose ("Calling +[PUT]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $theHeaders
     }
     catch [System.Net.WebException] {
-        Write-Verbose ("++ PUT ++`nUrl: {0}`nBody:`n{1}`n" -f $uri, $body)
         HandleWebException($_.Exception)
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        HandleHttpResponseException($_.Exception)
     }
 }
 
@@ -1362,6 +1368,31 @@ function Get-LevelUpEnvironment() {
     return $Script:uri
 }
 
+function HandleHttpResponseException {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [Microsoft.Powershell.Commands.HttpResponseException]$exception
+    )
+
+    if (!$exception.Response) {
+        Write-Host $exception -ForegroundColor Red
+        break
+    }
+
+    $statusCode = [int]$exception.Response.StatusCode
+    $statusDescription = $exception.Response.ReasonPhrase
+    Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
+
+    $lastError = $Global:Error | Select-Object -Last 1
+    if($lastError) {
+        $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
+        Write-Host "Error message:" -ForegroundColor:DarkGray
+        Write-Host "`t" $parsed.Error.Message -ForegroundColor:DarkGray
+    }
+    break
+}
+
 function HandleWebException {
     [CmdletBinding()]
     param(
@@ -1384,7 +1415,7 @@ function HandleWebException {
         $responseStream = $exception.Response.GetResponseStream()
         $reader = New-Object System.IO.StreamReader($responseStream)
         $global:responseBody = $reader.ReadToEnd()
-    
+
         if($global:responseBody) {
             Write-Host "Error message:" -ForegroundColor:DarkGray
             try {
