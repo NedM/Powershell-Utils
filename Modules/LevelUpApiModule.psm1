@@ -27,7 +27,7 @@ $Script:baseURI = $Script:environments['production']
 $Script:uri = $Script:baseURI + $Script:ver
 
 # Common HTTP Headers not including Authorization Header
-$commonHeaders = @{"Content-Type" = "application/json"; "Accept" = "application/json"}
+$commonHeaders = @{ 'Content-Type' = "application/json"; Accept = "application/json"}
 
 $Script:apiKey = ''
 $Script:environment = ''
@@ -37,162 +37,6 @@ $Script:userAccessToken = ''
 $Script:credentials = $null
 
 Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
-
-## Read config file ##
-function Get-LevelUpModuleConfig {
-    [cmdletbinding()]
-    Param(
-        [Parameter()]
-        [Alias('e')]
-        [string]$environment,
-        [Parameter()]
-        [Alias('p')]
-        [string]$pathToConfig = $Script:pathToConfig
-    )
-
-    $config = $null
-
-    Write-Verbose "Attempting to read config at $pathToConfig..."
-
-    if(Test-Path $pathToConfig) {
-        $config = Read-JsonFile -path $pathToConfig
-
-        if($environment) {
-            $environment = $environment.ToLower()
-            Write-Verbose "Reading config for $environment..."
-
-            $config = $config | select-object -property $environment -ExpandProperty $environment
-        }
-    } else {
-        Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
-    }
-
-    if(!$config.user_access_token -and !$config.merchant_access_token) {
-        if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
-        if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
-        if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
-    }
-
-    return $config
-}
-
-## Manage Environment ##
-function Get-LevelUpEnvironment() {
-    return $Script:uri
-}
-
-function Set-LevelUpEnvironment{
-    [cmdletbinding()]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$envName,
-        [Parameter()]
-        [int]$version = 15
-    )
-
-    if(!$Script:environments.Contains($envName.ToLower())){
-        Write-Host ("WARNING: Invalid entry! Please choose one of the following: [{0}]" `
-            -f ($Script:environments.Keys -join ',')) -ForegroundColor Yellow
-
-        $Script:baseURI = $envName
-    } else {
-        $Script:baseURI = $Script:environments[$envName.ToLower()]
-    }
-
-    if(!$Script:baseURI.EndsWith('/')) {
-        $Script:baseURI += '/'
-    }
-
-    switch($version) {
-        0 { $Script:ver = $null }
-        13 { $Script:ver = $v13 }
-        14 { $Script:ver = $v14 }
-        default { $Script:ver = $v15 }
-    }
-
-    $Script:uri = (@($Script:baseURI.TrimEnd('/'), $Script:ver) -join '/')
-
-    Write-Host ("Set environment as: {0}" -f $Script:uri) -ForegroundColor Cyan
-}
-
-function Load-LevelUpConfigFromFile {
-    [cmdletbinding()]
-    Param(
-        [Parameter()]
-        [Alias('e')]
-        [string]$environment,
-        [Parameter()]
-        [Alias('p')]
-        [string]$pathToConfig = $Script:pathToConfig
-    )
-
-    $config = Get-LevelUpModuleConfig -pathToConfig $pathToConfig -environment $environment
-
-    Load-LevelUpConfig -config $config
-}
-
-function Load-LevelUpConfig {
-    [cmdletbinding()]
-    Param(
-        [Parameter()]
-        [Alias('c')]
-        $config
-    )
-
-    if(!$config) {
-        $config = Get-LevelUpModuleConfig
-    }
-
-    if($config) {
-        $Script:merchantAccessToken = $config.merchant_access_token
-        $Script:serviceAccessToken = $config.service_access_token
-        $Script:userAccessToken = $config.user_access_token
-        $Script:apiKey = $config.api_key
-        $Script:environment = $config.environment
-        $version = $config.version
-
-        $username = $config.username
-        $password = $config.password
-        if($username -and $password) {
-            $Script:credentials = [pscredential]::New($username,
-                ($password | ConvertTo-SecureString))
-        }
-    }
-
-    if(!$Script:environment) { $Script:environment = Read-Host -Prompt 'Environment' }
-    if(!$version) { $version = Read-Host -Prompt 'Version (14|15)' }
-
-    Set-LevelUpEnvironment -envName $Script:environment -version $version
-
-    if(!$Script:apiKey) { $Script:apiKey = Read-Host -Prompt 'Api Key' }
-
-    $access_token = $Script:userAccessToken
-    $username = ''
-    $password = ''
-
-    if(!$access_token) {
-        if(!$Script:credentials.UserName -or !$Script:credentials.Password) {
-            if(!$Script:credentials.UserName) { $username = Read-Host -Prompt 'Username' }
-            if(!$Script:credentials.Password) { $password = Read-Host -Prompt 'Password' -AsSecureString }
-            $Script:credentials = [pscredential]::New($username, $password)
-        }
-
-        $access = Get-LevelUpAccessToken -apikey $Script:apiKey `
-            -username $Script:credentials.UserName `
-            -password $Script:credentials.Password
-        $access_token = $access.Token
-    }
-
-    if(!$access_token) { exit 1 }
-
-    if(!$Script:merchantAccessToken) { $Script:merchantAccessToken = $access_token }
-    if(!$Script:userAccessToken) { $Script:userAccessToken = $access_token }
-
-    Set-LevelUpAccessTokens -merchantAccessToken $Script:merchantAccessToken `
-        -userAccessToken $Script:userAccessToken -serviceAccessToken $Script:serviceAccessToken
-
-    Write-Host 'Done configuring LevelUp module!' -ForegroundColor Green
-}
 
 #####################
 # LevelUp API Calls #
@@ -232,33 +76,6 @@ function Get-LevelUpAccessToken {
     $parsed = $response.Content | ConvertFrom-Json
 
     return $parsed.access_token
-}
-
-# Add Authorization header to common headers and return new headers
-function Add-LevelUpAuthorizationHeader {
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$token,
-        [Parameter()]
-        [Hashtable]$headers = $commonHeaders
-    )
-
-    $authKey = "Authorization"
-    $tokenString = "token"
-
-    $newHeaders = @{}
-    if ($headers) {
-        $newHeaders += $headers
-    }
-
-    if($newHeaders.ContainsKey($authKey)) {
-        $newHeaders[$authKey] = "$tokenString $token"
-    } else {
-        $newHeaders.Add($authKey, "$tokenString $token")
-    }
-
-    return $newHeaders
 }
 
 # Set the LevelUp acceess token value used within the Authorization Header
@@ -1398,6 +1215,33 @@ function Submit-PutRequest {
 # Helper Methods #
 ##################
 
+# Add Authorization header to common headers and return new headers
+function Add-LevelUpAuthorizationHeader {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$token,
+        [Parameter()]
+        [Hashtable]$headers = $commonHeaders
+    )
+
+    $authKey = "Authorization"
+    $tokenString = "token"
+
+    $newHeaders = @{}
+    if ($headers) {
+        $newHeaders += $headers
+    }
+
+    if($newHeaders.ContainsKey($authKey)) {
+        $newHeaders[$authKey] = "$tokenString $token"
+    } else {
+        $newHeaders.Add($authKey, "$tokenString $token")
+    }
+
+    return $newHeaders
+}
+
 function Create-Uri {
     [cmdletbinding()]
     Param(
@@ -1431,20 +1275,6 @@ function Create-Uri {
     return $request.Uri.ToString()
 }
 
-function Get-LevelUpSampleItemList() {
-    $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 0 7
-    $item2 = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 100 1
-
-    return @($item1,$item2)
-}
-
-function Get-LevelUpOASampleItemList() {
-    $cheese_steak = Format-LevelUpOAItem -id 2139027 -quantity 2 -specialItemInstructions 'Roast thoroughly in the heat of active volcano.' -optionIds $null
-    $chix_pesto = Format-LevelUpOAItem -id 2139028 -quantity 1 -specialItemInstructions 'Lightly sauce on the underside during the waning moon.' -optionIds $null
-
-    return @($cheese_steak, $chix_pesto)
-}
-
 function Format-LevelUpItem([string]$name, [string]$description, [string]$category, [string]$upc, [string]$sku, [int]$chargedPriceAmount, [int]$quantity = 1) {
     $item = @{
       "item" = @{
@@ -1475,6 +1305,177 @@ function Format-LevelUpOAItem([int]$id, [int]$quantity, [string]$specialItemInst
     return $item
 }
 
+function Get-LevelUpSampleItemList() {
+    $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 0 7
+    $item2 = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 100 1
+
+    return @($item1,$item2)
+}
+
+function Get-LevelUpOASampleItemList() {
+    $cheese_steak = Format-LevelUpOAItem -id 2139027 -quantity 2 -specialItemInstructions 'Roast thoroughly in the heat of active volcano.' -optionIds $null
+    $chix_pesto = Format-LevelUpOAItem -id 2139028 -quantity 1 -specialItemInstructions 'Lightly sauce on the underside during the waning moon.' -optionIds $null
+
+    return @($cheese_steak, $chix_pesto)
+}
+
+## Read config file ##
+function Get-LevelUpModuleConfig {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [Alias('e')]
+        [string]$environment,
+        [Parameter()]
+        [Alias('p')]
+        [string]$pathToConfig = $Script:pathToConfig
+    )
+
+    $config = $null
+
+    Write-Verbose "Attempting to read config at $pathToConfig..."
+
+    if(Test-Path $pathToConfig) {
+        $config = Read-JsonFile -path $pathToConfig
+
+        if($environment) {
+            $environment = $environment.ToLower()
+            Write-Verbose "Reading config for $environment..."
+
+            $config = $config | select-object -property $environment -ExpandProperty $environment
+        }
+    } else {
+        Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
+    }
+
+    if(!$config.user_access_token -and !$config.merchant_access_token) {
+        if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
+        if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
+        if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
+    }
+
+    return $config
+}
+
+## Manage Environment ##
+function Get-LevelUpEnvironment() {
+    return $Script:uri
+}
+
+function HandleWebException {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [System.Net.WebException]$exception
+    )
+
+    if(!$exception.Response) {
+        Write-Host $exception -ForegroundColor Red
+        return 1;
+    }
+
+    $statusCode = [int]$exception.Response.StatusCode
+    $statusDescription = $exception.Response.StatusDescription
+    Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
+
+    # Get the response body as JSON
+    $responseStream = $exception.Response.GetResponseStream()
+    $reader = New-Object System.IO.StreamReader($responseStream)
+    $global:responseBody = $reader.ReadToEnd()
+    
+    if($global:responseBody) {
+        Write-Host "Error message:" -ForegroundColor:DarkGray
+        try {
+            $json = $global:responseBody | ConvertFrom-JSON
+            $json | ForEach-Object { Write-Host  "`t$_.error.message" -ForegroundColor:DarkGray }
+        }
+        catch {
+            # Just output the body as raw data
+            Write-Host $global:responseBody -ForegroundColor:DarkGray
+        }
+    }
+    break
+}
+
+function Load-LevelUpConfigFromFile {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [Alias('e')]
+        [string]$environment,
+        [Parameter()]
+        [Alias('p')]
+        [string]$pathToConfig = $Script:pathToConfig
+    )
+
+    $config = Get-LevelUpModuleConfig -pathToConfig $pathToConfig -environment $environment
+
+    Load-LevelUpConfig -config $config
+}
+
+function Load-LevelUpConfig {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [Alias('c')]
+        $config
+    )
+
+    if(!$config) {
+        $config = Get-LevelUpModuleConfig
+    }
+
+    if($config) {
+        $Script:merchantAccessToken = $config.merchant_access_token
+        $Script:serviceAccessToken = $config.service_access_token
+        $Script:userAccessToken = $config.user_access_token
+        $Script:apiKey = $config.api_key
+        $Script:environment = $config.environment
+        $version = $config.version
+
+        $username = $config.username
+        $password = $config.password
+        if($username -and $password) {
+            $Script:credentials = [pscredential]::New($username,
+                ($password | ConvertTo-SecureString))
+        }
+    }
+
+    if(!$Script:environment) { $Script:environment = Read-Host -Prompt 'Environment' }
+    if(!$version) { $version = Read-Host -Prompt 'Version (14|15)' }
+
+    Set-LevelUpEnvironment -envName $Script:environment -version $version
+
+    if(!$Script:apiKey) { $Script:apiKey = Read-Host -Prompt 'Api Key' }
+
+    $access_token = $Script:userAccessToken
+    $username = ''
+    $password = ''
+
+    if(!$access_token) {
+        if(!$Script:credentials.UserName -or !$Script:credentials.Password) {
+            if(!$Script:credentials.UserName) { $username = Read-Host -Prompt 'Username' }
+            if(!$Script:credentials.Password) { $password = Read-Host -Prompt 'Password' -AsSecureString }
+            $Script:credentials = [pscredential]::New($username, $password)
+        }
+
+        $access = Get-LevelUpAccessToken -apikey $Script:apiKey `
+            -username $Script:credentials.UserName `
+            -password $Script:credentials.Password
+        $access_token = $access.Token
+    }
+
+    if(!$access_token) { exit 1 }
+
+    if(!$Script:merchantAccessToken) { $Script:merchantAccessToken = $access_token }
+    if(!$Script:userAccessToken) { $Script:userAccessToken = $access_token }
+
+    Set-LevelUpAccessTokens -merchantAccessToken $Script:merchantAccessToken `
+        -userAccessToken $Script:userAccessToken -serviceAccessToken $Script:serviceAccessToken
+
+    Write-Host 'Done configuring LevelUp module!' -ForegroundColor Green
+}
+
 function Redact-LevelUpQrCode {
     [CmdletBinding()]
     param(
@@ -1492,34 +1493,37 @@ function Redact-LevelUpQrCode {
     }
 }
 
-function HandleWebException {
-    [CmdletBinding()]
-    param(
+
+function Set-LevelUpEnvironment{
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$envName,
         [Parameter()]
-        [System.Net.WebException]$exception
+        [int]$version = 15
     )
 
-    if(!$exception.Response) {
-        Write-Host $exception -ForegroundColor Red
-        return 1;
+    if(!$Script:environments.Contains($envName.ToLower())){
+        Write-Host ("WARNING: Invalid entry! Please choose one of the following: [{0}]" `
+            -f ($Script:environments.Keys -join ',')) -ForegroundColor Yellow
+
+        $Script:baseURI = $envName
+    } else {
+        $Script:baseURI = $Script:environments[$envName.ToLower()]
     }
 
-    $statusCode = [int]$exception.Response.StatusCode
-    $statusDescription = $exception.Response.StatusDescription
-    Write-Host -ForegroundColor:Red "HTTP Error: $statusCode $statusDescription"
+    if(!$Script:baseURI.EndsWith('/')) {
+        $Script:baseURI += '/'
+    }
 
-    # Get the response body as JSON
-    $responseStream = $exception.Response.GetResponseStream()
-    $reader = New-Object System.IO.StreamReader($responseStream)
-    $Script:responseBody = $reader.ReadToEnd()
-    Write-Host "Error message:"
-    try {
-        $json = $Script:responseBody | ConvertFrom-JSON
-        $json | ForEach-Object { Write-Host  "    " $_.error.message }
+    switch($version) {
+        0 { $Script:ver = $null }
+        13 { $Script:ver = $v13 }
+        14 { $Script:ver = $v14 }
+        default { $Script:ver = $v15 }
     }
-    catch {
-        # Just output the body as raw data
-        Write-Host $Script:responseBody -ForegroundColor Red
-    }
-    break
+
+    $Script:uri = (@($Script:baseURI.TrimEnd('/'), $Script:ver) -join '/')
+
+    Write-Host ("Set environment as: {0}" -f $Script:uri) -ForegroundColor Cyan
 }
