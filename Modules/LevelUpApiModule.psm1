@@ -1,10 +1,6 @@
 ﻿## PowerShell module for LevelUp API
 ## Copyright(c) 2016 SCVNGR, Inc. d/b/a LevelUp. All rights reserved.
 
-#################
-## LEVELUP API ##
-#################
-
 # Force TLS v1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 
@@ -30,19 +26,17 @@ $Script:uri = $Script:baseURI + $Script:ver
 $commonHeaders = @{ 'Content-Type' = "application/json"; Accept = "application/json"}
 
 $Script:apiKey = ''
+$Script:credentials = $null
 $Script:environment = ''
 $Script:merchantAccessToken = ''
 $Script:serviceAccessToken = ''
 $Script:userAccessToken = ''
-$Script:credentials = $null
-
-}
 
 Import-Module $PSScriptRoot\JsonFileOperations.psm1 -force
 
-#####################
-# LevelUp API Calls #
-#####################
+################
+# LevelUp API #
+###############
 
 ## Authenticate ##
 function Get-LevelUpAccessToken {
@@ -1516,9 +1510,6 @@ function Load-LevelUpConfig {
     if(!$Script:merchantAccessToken) { $Script:merchantAccessToken = $access_token }
     if(!$Script:userAccessToken) { $Script:userAccessToken = $access_token }
 
-    Set-LevelUpAccessTokens -merchantAccessToken $Script:merchantAccessToken `
-        -userAccessToken $Script:userAccessToken -serviceAccessToken $Script:serviceAccessToken
-
     Write-Host 'Done configuring LevelUp module!' -ForegroundColor Green
 }
 
@@ -1538,7 +1529,6 @@ function Redact-LevelUpQrCode {
         return $qrCode.Replace($qrCode.Substring($startIndex, $tokenLength), "[** Redacted **]")
     }
 }
-
 
 function Set-LevelUpEnvironment{
     [cmdletbinding()]
