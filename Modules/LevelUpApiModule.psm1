@@ -45,20 +45,29 @@ function Get-LevelUpAccessToken {
         [ValidateNotNullOrEmpty()]
         [Parameter(Mandatory=$true)]
         [string]$apikey,
-        [ValidateNotNullOrEmpty()]
-        [Parameter(Mandatory=$true)]
+        [Parameter()]
         [string]$username,
-        [ValidateNotNullOrEmpty()]
-        [Parameter(Mandatory=$true)]
+        [Parameter()]
         [System.Security.SecureString]$password
     )
 
-    $psCred = [pscredential]::New($username, $password)
+    $psCred = $null
+    if(!$username -and !$password) {
+        $psCred = Get-Credential
+    } elseif(!$username) {
+        $username = Read-Host -Prompt 'Username'
+        $psCred = [pscredential]::New($username, $password)
+    } elseif(!$password) {
+        $password = Read-Host -Prompt 'Password' -AsSecureString
+        $psCred = [pscredential]::new($username, $password)
+    } else {
+        $psCred = [pscredential]::New($username, $password)
+    }
 
     $tokenRequest = @{
         access_token = @{
             client_id = $apikey;
-            username = $username;
+            username = $psCred.username;
             password = $psCred.GetNetworkCredential().Password;
         }
     }
@@ -1349,22 +1358,21 @@ function Get-LevelUpModuleConfig {
             $environment = $environment.ToLower()
             Write-Verbose "Reading config for $environment..."
 
-            $config = $config | select-object -property $environment -ExpandProperty $environment
+            $config = $config | select-object -ExpandProperty $environment
         }
     } else {
         Write-Host "Failed to find a config file at $pathToConfig!" -ForegroundColor Yellow
     }
 
     if(!$config.user_access_token -and !$config.merchant_access_token) {
-        if(!$config.api_key) { $config.Add('api_key', (Read-Host -Prompt 'Api Key')) }
-        if(!$config.username) { $config.Add('username', (Read-Host -Prompt 'Username')) }
-        if(!$config.password) { $config.Add('password', (Read-Host -Prompt 'Password' -AsSecureString)) }
+        if(!$config.api_key) { $config | Add-Member -NotePropertyName 'api_key' -NotePropertyValue (Read-Host -Prompt 'Api Key') }
+        if(!$config.username) { $config | Add-Member -NotePropertyName 'username' -NotePropertyValue (Read-Host -Prompt 'Username') }
+        if(!$config.password) { $config | Add-Member -NotePropertyName 'password' -NotePropertyValue ((Read-Host -Prompt 'Password' -AsSecureString | ConvertFrom-SecureString)) }
     }
 
     return $config
 }
 
-## Manage Environment ##
 function Get-LevelUpEnvironment() {
     return $Script:uri
 }
@@ -1414,18 +1422,25 @@ function HandleWebException {
     try {
         # Get the response body as JSON
         $responseStream = $exception.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($responseStream)
-        $global:responseBody = $reader.ReadToEnd()
 
-        if($global:responseBody) {
-            Write-Host "Error message:" -ForegroundColor:DarkGray
-            try {
-                $json = $global:responseBody | ConvertFrom-JSON
-                $json | ForEach-Object { Write-Host  "`t" $_.error.message -ForegroundColor:DarkGray }
+        if($responseStream.Length -gt 0) {
+            $reader = New-Object System.IO.StreamReader($responseStream)
+            if($responseStream.Position -eq $responseStream.Length) {
+                $responseStream.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
             }
-            catch {
-                # Just output the body as raw data
-                Write-Host $global:responseBody -ForegroundColor:DarkGray
+
+            $global:responseBody = $reader.ReadToEnd()
+
+            if($global:responseBody) {
+                Write-Host "Error message:" -ForegroundColor:DarkGray
+                try {
+                    $json = $global:responseBody | ConvertFrom-JSON
+                    $json | ForEach-Object { Write-Host  "`t" $_.error.message -ForegroundColor:DarkGray }
+                }
+                catch {
+                    # Just output the body as raw data
+                    Write-Host $global:responseBody -ForegroundColor:DarkGray
+                }
             }
         }
     } finally {
