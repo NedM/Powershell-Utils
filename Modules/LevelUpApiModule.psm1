@@ -1393,8 +1393,8 @@ function HandleHttpResponseException {
     $statusDescription = $exception.Response.ReasonPhrase
     Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
 
-    $lastError = $Global:Error | Select-Object -Last 1
-    if($lastError) {
+    $lastError = $Global:Error | Select-Object -First 1
+    if($lastError -and $lastError.Exception -eq $exception) {
         $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
         Write-Host "Error message:" -ForegroundColor:DarkGray
         Write-Host "`t" $parsed.Error.Message -ForegroundColor:DarkGray
