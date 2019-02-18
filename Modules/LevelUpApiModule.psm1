@@ -23,7 +23,7 @@ $Script:baseURI = $Script:environments['production']
 $Script:uri = $Script:baseURI + $Script:ver
 
 # Common HTTP Headers not including Authorization Header
-$commonHeaders = @{ 'Content-Type' = "application/json"; Accept = "application/json"}
+$commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
 
 $Script:apiKey = ''
 $Script:credentials = $null
