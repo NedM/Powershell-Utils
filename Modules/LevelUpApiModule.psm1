@@ -1111,6 +1111,72 @@ function Start-LevelUpOAOrder {
     return $parsed.order
 }
 
+function Get-LevelUpSubscriptions {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+
+    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.subscription
+}
+
+
+function New-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$acquisition_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI+$v15)
+
+    $subscription = @{
+        'subscription' = @{
+            'provider' = $provider;
+            'id' = $acquisition_id;
+        }
+    }
+
+    $body = $subscription | ConvertTo-Json
+
+    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+
+    return $response
+}
+
+function Remove-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$list_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
+
+    $subscription = @{
+        'subscription' = @{
+            'provider' = $provider;
+        }
+    }
+
+    $body = $subscription | ConvertTo-Json
+
+    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+
+    return $response
+}
 
 ################
 # REST Methods #
@@ -1135,6 +1201,37 @@ function Submit-GetRequest{
     Write-Verbose "Calling +[GET]+ on $uri"
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
+    }
+    catch [System.Net.WebException] {
+        HandleWebException($_.Exception)
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        HandleHttpResponseException($_.Exception)
+    }
+}
+
+function Submit-DeleteRequest {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$uri,
+        [Parameter(Mandatory = $true)]
+        [string]$body,
+        [Parameter(Mandatory = $false)]
+        [string]$accessToken = $null,
+        [Parameter(Mandatory = $false)]
+        [Hashtable]$headers = $commonHeaders
+    )
+
+    $theHeaders = $headers
+    # Add HTTP Authorization header if access token specified
+    if ($accessToken) {
+        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
+    }
+
+    Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
+    try {
+        return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
