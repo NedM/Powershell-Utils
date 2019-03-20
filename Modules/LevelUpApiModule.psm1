@@ -891,6 +891,67 @@ function Send-LevelUpReceiptScan{
     return $response.StatusCode # HTTP status 204 [No content] indicates success
 }
 
+function Get-LevelUpSubscriptions {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+
+    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.subscription
+}
+
+
+function New-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$acquisition_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+
+    $subscription = @{
+        'subscription' = @{
+            'provider' = $provider;
+            'id'       = $acquisition_id;
+        }
+    }
+
+    $body = $subscription | ConvertTo-Json
+
+    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+
+    return $response
+}
+
+function Remove-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$list_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $baseUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
+    $params = @{ provider = $provider; }
+    $theUri = Create-Uri -base $baseUri -parameters $params
+
+    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+
+    return $response
+}
+
 #################################
 # LevelUp Order Ahead API Calls #
 #################################
@@ -1111,7 +1172,6 @@ function Start-LevelUpOAOrder {
     return $parsed.order
 }
 
-
 ################
 # REST Methods #
 ################
@@ -1135,6 +1195,41 @@ function Submit-GetRequest{
     Write-Verbose "Calling +[GET]+ on $uri"
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
+    }
+    catch [System.Net.WebException] {
+        HandleWebException($_.Exception)
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        HandleHttpResponseException($_.Exception)
+    }
+}
+
+function Submit-DeleteRequest {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$uri,
+        [Parameter(Mandatory = $false)]
+        [string]$body = $null,
+        [Parameter(Mandatory = $false)]
+        [string]$accessToken = $null,
+        [Parameter(Mandatory = $false)]
+        [Hashtable]$headers = $commonHeaders
+    )
+
+    $theHeaders = $headers
+    # Add HTTP Authorization header if access token specified
+    if ($accessToken) {
+        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
+    }
+
+    Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
+    try {
+        if($body) {
+            return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
+        } else {
+            return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
+        }
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
@@ -1395,9 +1490,10 @@ function HandleHttpResponseException {
 
     $lastError = $Global:Error | Select-Object -First 1
     if($lastError -and $lastError.Exception -eq $exception) {
+        Write-Verbose $lastError.ErrorDetails
+
         $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
-        Write-Host "Error message:" -ForegroundColor:DarkGray
-        Write-Host "`t" $parsed.Error.Message -ForegroundColor:DarkGray
+        Write-Host "Error message:`n`t" $parsed.Error.Message -ForegroundColor:DarkGray
     }
     break
 }
