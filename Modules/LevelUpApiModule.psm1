@@ -1163,15 +1163,9 @@ function Remove-LevelUpSubscription {
         [Parameter()]
         [string]$userAccessToken = $Script:userAccessToken
     )
-    $theUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
-
-    $subscription = @{
-        'subscription' = @{
-            'provider' = $provider;
-        }
-    }
-
-    $body = $subscription | ConvertTo-Json
+    $baseUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
+    $params = @{ provider = $provider; }
+    $theUri = Create-Uri -base $baseUri -parameters $params
 
     $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
 
