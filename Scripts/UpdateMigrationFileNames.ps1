@@ -7,21 +7,21 @@ Param(
 
 $format = 'yyyyMMddHHmmss'
 
-$fileNames | foreach {
-    if(-not (Test-Path -Path $_)) { 
+$fileNames | ForEach-Object {
+    if(-not (Test-Path -Path $_)) {
         Write-Host "Skipping $_ because it does not exist in the current directory" -ForegroundColor Yellow
-        return; 
+        return;
     }
 
-    if($_.Length -lt $format.Length) { 
+    if($_.Length -lt $format.Length) {
         Write-Host "Skipping $_ because the filename is too short" -ForegroundColor Red
-        return; 
+        return;
     }
 
     [int64]$b = $null
-    if(![int64]::TryParse($_.Substring(0, $format.Length), [ref]$b)) { 
+    if(![int64]::TryParse($_.Substring(0, $format.Length), [ref]$b)) {
         Write-Host "Skipping $_ because the filename does not have the correct format" -ForegroundColor Red
-        return; 
+        return;
     }
 
     $dateTimeUTC = (Get-Date).ToUniversalTime()
@@ -29,5 +29,5 @@ $fileNames | foreach {
     Write-Host "Updating $_ with new name: $NewName" -ForegroundColor Green
     Rename-Item -Path $_ -NewName $NewName
 
-    Sleep 1
+    Start-Sleep 1
 }
