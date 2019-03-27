@@ -891,6 +891,67 @@ function Send-LevelUpReceiptScan{
     return $response.StatusCode # HTTP status 204 [No content] indicates success
 }
 
+function Get-LevelUpSubscriptions {
+    [cmdletbinding()]
+    Param(
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+
+    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+
+    $parsed = $response.Content | ConvertFrom-Json
+
+    return $parsed.subscription
+}
+
+
+function New-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$acquisition_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+
+    $subscription = @{
+        'subscription' = @{
+            'provider' = $provider;
+            'id'       = $acquisition_id;
+        }
+    }
+
+    $body = $subscription | ConvertTo-Json
+
+    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+
+    return $response
+}
+
+function Remove-LevelUpSubscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$list_id,
+        [Parameter()]
+        [string]$provider = 'vibes',
+        [Parameter()]
+        [string]$userAccessToken = $Script:userAccessToken
+    )
+    $baseUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
+    $params = @{ provider = $provider; }
+    $theUri = Create-Uri -base $baseUri -parameters $params
+
+    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+
+    return $response
+}
+
 #################################
 # LevelUp Order Ahead API Calls #
 #################################
@@ -1109,67 +1170,6 @@ function Start-LevelUpOAOrder {
     $parsed = $response.Content | ConvertFrom-Json
 
     return $parsed.order
-}
-
-function Get-LevelUpSubscriptions {
-    [cmdletbinding()]
-    Param(
-        [Parameter()]
-        [string]$userAccessToken = $Script:userAccessToken
-    )
-    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
-
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
-
-    $parsed = $response.Content | ConvertFrom-Json
-
-    return $parsed.subscription
-}
-
-
-function New-LevelUpSubscription {
-    [cmdletbinding()]
-    Param(
-        [Parameter(Mandatory = $true)]
-        [string]$acquisition_id,
-        [Parameter()]
-        [string]$provider = 'vibes',
-        [Parameter()]
-        [string]$userAccessToken = $Script:userAccessToken
-    )
-    $theUri = "{0}subscriptions" -f ($Script:baseURI+$v15)
-
-    $subscription = @{
-        'subscription' = @{
-            'provider' = $provider;
-            'id' = $acquisition_id;
-        }
-    }
-
-    $body = $subscription | ConvertTo-Json
-
-    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
-
-    return $response
-}
-
-function Remove-LevelUpSubscription {
-    [cmdletbinding()]
-    Param(
-        [Parameter(Mandatory = $true)]
-        [string]$list_id,
-        [Parameter()]
-        [string]$provider = 'vibes',
-        [Parameter()]
-        [string]$userAccessToken = $Script:userAccessToken
-    )
-    $baseUri = ("{0}subscriptions/{1}" -f ($Script:baseURI + $v15), $list_id)
-    $params = @{ provider = $provider; }
-    $theUri = Create-Uri -base $baseUri -parameters $params
-
-    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
-
-    return $response
 }
 
 ################
