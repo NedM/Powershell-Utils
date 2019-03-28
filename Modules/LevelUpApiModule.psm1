@@ -947,7 +947,7 @@ function Remove-LevelUpSubscription {
     $params = @{ provider = $provider; }
     $theUri = Create-Uri -base $baseUri -parameters $params
 
-    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
 
     return $response
 }
@@ -1209,8 +1209,8 @@ function Submit-DeleteRequest {
     Param(
         [Parameter(Mandatory = $true)]
         [string]$uri,
-        [Parameter(Mandatory = $true)]
-        [string]$body,
+        [Parameter(Mandatory = $false)]
+        [string]$body = $null,
         [Parameter(Mandatory = $false)]
         [string]$accessToken = $null,
         [Parameter(Mandatory = $false)]
@@ -1225,7 +1225,11 @@ function Submit-DeleteRequest {
 
     Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
-        return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
+        if($body) {
+            return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
+        } else {
+            return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
+        }
     }
     catch [System.Net.WebException] {
         HandleWebException($_.Exception)
@@ -1487,8 +1491,8 @@ function HandleHttpResponseException {
     $lastError = $Global:Error | Select-Object -First 1
     if($lastError -and $lastError.Exception -eq $exception) {
         $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
-        Write-Host "Error message:" -ForegroundColor:DarkGray
-        Write-Host "`t" $parsed.Error.Message -ForegroundColor:DarkGray
+
+        Write-Host "Error message:`n`t" $parsed.Error.Message -ForegroundColor:DarkGray
     }
     break
 }
