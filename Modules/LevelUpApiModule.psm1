@@ -1490,8 +1490,9 @@ function HandleHttpResponseException {
 
     $lastError = $Global:Error | Select-Object -First 1
     if($lastError -and $lastError.Exception -eq $exception) {
-        $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
+        Write-Verbose $lastError.ErrorDetails
 
+        $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
         Write-Host "Error message:`n`t" $parsed.Error.Message -ForegroundColor:DarkGray
     }
     break
