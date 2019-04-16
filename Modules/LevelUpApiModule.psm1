@@ -1555,7 +1555,12 @@ function HandleWebRequestException {
         Write-Error -ErrorRecord $error
     } else {
         $statusCode = [int]$response.StatusCode
-        $statusDescription = $response.StatusDescription
+        $statusDescription = [string]$response.StatusCode 
+        
+        if($response.StatusDescription) { 
+            $statusDescription = $response.StatusDescription 
+        }
+        
         $details = $error.ErrorDetails
 
         Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
