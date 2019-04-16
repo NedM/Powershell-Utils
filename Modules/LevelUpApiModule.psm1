@@ -23,7 +23,7 @@ $Script:baseURI = $Script:environments['production']
 $Script:uri = $Script:baseURI + $Script:ver
 
 # Common HTTP Headers not including Authorization Header
-$commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
+$Script:commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
 
 $Script:apiKey = ''
 $Script:credentials = $null
@@ -76,7 +76,7 @@ function Get-LevelUpAccessToken {
 
     $theURI = $Script:uri + "access_tokens"
 
-    $response = Submit-PostRequest -uri $theURI -body $body -headers $commonHeaders
+    $response = Submit-PostRequest -uri $theURI -body $body -headers $Script:commonHeaders
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -111,7 +111,7 @@ function Get-LevelUpManagedLocations {
 
     $theUri = $Script:baseURI + $v15 + "managed_locations"
 
-    $response = Submit-GetRequest -uri $theUri -accessToken "merchant=$merchantAccessToken" -headers $commonHeaders
+    $response = Submit-GetRequest -uri $theUri -accessToken "merchant=$merchantAccessToken" -headers $Script:commonHeaders
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -126,7 +126,7 @@ function Get-LevelUpLocationDetails {
     )
     $theUri = $Script:uri + "locations/$locationId"
 
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders
+    $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -821,7 +821,7 @@ function Get-LevelUpLocationsForApp{
 
     $theUri = "{0}apps/{1}/locations?fulfillment_types={2}&lat={3}&lng={4}&deduplicate=true{5}" -f $Script:uri, $appId, $fulfillmentTypeString, $lat, $lng, $pageString
 
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders
+    $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -899,11 +899,11 @@ function Get-LevelUpSubscriptions {
     )
     $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
 
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+    $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders -accessToken $userAccessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
-    return $parsed.subscription
+    return $parsed
 }
 
 
@@ -928,7 +928,7 @@ function New-LevelUpSubscription {
 
     $body = $subscription | ConvertTo-Json
 
-    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $userAccessToken
+    $response = Submit-PostRequest -uri $theUri -headers $Script:commonHeaders -body $body -accessToken $userAccessToken
 
     return $response
 }
@@ -947,7 +947,7 @@ function Remove-LevelUpSubscription {
     $params = @{ provider = $provider; }
     $theUri = Create-Uri -base $baseUri -parameters $params
 
-    $response = Submit-DeleteRequest -uri $theUri -headers $commonHeaders -accessToken $userAccessToken
+    $response = Submit-DeleteRequest -uri $theUri -headers $Script:commonHeaders -accessToken $userAccessToken
 
     return $response
 }
@@ -966,7 +966,7 @@ function Get-LevelUpOAMenu {
     )
     $theUri = "{0}order_ahead/menus/{1}" -f ($Script:baseURI+$v15), $menuId
 
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders
+    $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders
 
     if($response.StatusCode -eq 204) {
         return $null
@@ -1001,7 +1001,7 @@ function Complete-LevelUpOAOrder {
     )
     $accessToken = ("user={0}" -f $userAccessToken)
 
-    $response = Submit-PostRequest -uri $url -headers $commonHeaders -body $null -accessToken $accessToken
+    $response = Submit-PostRequest -uri $url -headers $Script:commonHeaders -body $null -accessToken $accessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -1032,7 +1032,7 @@ function Get-LevelUpOACompletedOrderStatus {
     )
     $accessToken = ("user={0}" -f $userAccessToken)
 
-    $response = Submit-GetRequest -uri $url -headers $commonHeaders -accessToken $accessToken
+    $response = Submit-GetRequest -uri $url -headers $Script:commonHeaders -accessToken $accessToken
 
     if($response.StatusCode -eq 202) {
         Write-Output 'Order still submitting...'
@@ -1070,7 +1070,7 @@ function Get-LevelUpOAProposedOrderStatus {
     )
     $accessToken = ("user={0}" -f $userAccessToken)
 
-    $response = Submit-GetRequest -uri $url -headers $commonHeaders -accessToken $accessToken
+    $response = Submit-GetRequest -uri $url -headers $Script:commonHeaders -accessToken $accessToken
 
     if($response.StatusCode -eq 202) {
         Write-Output 'Order still processing...'
@@ -1105,7 +1105,7 @@ function Get-LevelUpOAProviderInfo {
 
     $theUri = ("{0}order_ahead/locations/{1}/provider?fulfillment_type={2}" -f $Script:baseURI, $locationId, $fulfillmentType)
 
-    $response = Submit-GetRequest -uri $theUri -headers $commonHeaders -accessToken $accessToken
+    $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders -accessToken $accessToken
 
     $parsed = $response.Content | ConvertFrom-Json
 
@@ -1161,7 +1161,7 @@ function Start-LevelUpOAOrder {
 
     $body = $order | ConvertTo-Json -Depth 10
 
-    $response = Submit-PostRequest -uri $theUri -headers $commonHeaders -body $body -accessToken $accessToken
+    $response = Submit-PostRequest -uri $theUri -headers $Script:commonHeaders -body $body -accessToken $accessToken
 
 #    if($response.StatusCode -eq 204) {
 #        return $null
@@ -1175,35 +1175,6 @@ function Start-LevelUpOAOrder {
 ################
 # REST Methods #
 ################
-function Submit-GetRequest{
-    [cmdletbinding()]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$uri,
-        [Parameter(Mandatory=$false)]
-        [string]$accessToken = $null,
-        [Parameter(Mandatory=$false)]
-        [Hashtable]$headers = $commonHeaders
-    )
-
-    $theHeaders = $headers
-    # Add HTTP Authorization header if access token specified
-    if ($accessToken) {
-        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
-    }
-
-    Write-Verbose "Calling +[GET]+ on $uri"
-    try {
-        return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
-    }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
-    }
-}
-
 function Submit-DeleteRequest {
     [cmdletbinding()]
     Param(
@@ -1214,7 +1185,7 @@ function Submit-DeleteRequest {
         [Parameter(Mandatory = $false)]
         [string]$accessToken = $null,
         [Parameter(Mandatory = $false)]
-        [Hashtable]$headers = $commonHeaders
+        [Hashtable]$headers = $Script:commonHeaders
     )
 
     $theHeaders = $headers
@@ -1223,19 +1194,44 @@ function Submit-DeleteRequest {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
-        if($body) {
+        if ($body) {
+            Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}" -f $uri, $body)
             return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
-        } else {
+        }
+        else {
+            Write-Verbose ("Calling +[DELETE]+ on {0}" -f $uri)
             return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
         }
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+}
+
+function Submit-GetRequest{
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$uri,
+        [Parameter(Mandatory=$false)]
+        [string]$accessToken = $null,
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$headers = $Script:commonHeaders
+    )
+
+    $theHeaders = $headers
+    # Add HTTP Authorization header if access token specified
+    if ($accessToken) {
+        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
+    }
+
+    try {
+        Write-Verbose "Calling +[GET]+ on $uri"
+        return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
+    }
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1249,7 +1245,7 @@ function Submit-PostRequest{
         [Parameter(Mandatory=$false)]
         [string]$accessToken=$null,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers=$commonHeaders
+        [Hashtable]$headers=$Script:commonHeaders
     )
 
     $theHeaders = $headers
@@ -1258,15 +1254,12 @@ function Submit-PostRequest{
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[POST]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
+        Write-Verbose ("Calling +[POST]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1280,7 +1273,7 @@ function Submit-PutRequest {
         [Parameter(Mandatory=$false)]
         [string]$accessToken=$null,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers=$commonHeaders
+        [Hashtable]$headers=$Script:commonHeaders
     )
 
     $theHeaders = $headers
@@ -1289,15 +1282,12 @@ function Submit-PutRequest {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[PUT]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
+        Write-Verbose ("Calling +[PUT]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1312,7 +1302,7 @@ function Add-LevelUpAuthorizationHeader {
         [Parameter(Mandatory=$true)]
         [string]$token,
         [Parameter()]
-        [Hashtable]$headers = $commonHeaders
+        [Hashtable]$headers = $Script:commonHeaders
     )
 
     $authKey = "Authorization"
@@ -1472,6 +1462,8 @@ function Get-LevelUpEnvironment() {
     return $Script:uri
 }
 
+# [Obsolete(@"This method is no longer the preferred method for error handling due to cross " +
+#            "platform incompatibility. Use HandleWebRequestException instead")]
 function HandleHttpResponseException {
     [CmdletBinding()]
     param(
@@ -1498,6 +1490,8 @@ function HandleHttpResponseException {
     break
 }
 
+# [Obsolete(@"This method is no longer the preferred method for error handling due to cross " +
+#            "platform incompatibility. Use HandleWebRequestException instead")]
 function HandleWebException {
     [CmdletBinding()]
     param(
@@ -1543,6 +1537,52 @@ function HandleWebException {
         if($responseStream) {
             $responseStream.Close()
             $responseStream.Dispose()
+        }
+    }
+    break
+}
+
+function HandleWebRequestException {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        $error
+    )
+
+    $errorDetailsLengthLimit = 300
+    $response = $error.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
+
+    if(!$response) {
+        Write-Error -ErrorRecord $error
+    } else {
+        $statusCode = [int]$response.StatusCode
+        $statusDescription = [string]$response.StatusCode
+
+        if($response.StatusDescription) {
+            $statusDescription = $response.StatusDescription
+        }
+
+        Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
+
+        $details = $error.ErrorDetails
+
+        if($details) {
+            if($details.Message.length -gt $errorDetailsLengthLimit) {
+                Write-Host ("Error message:`n`t{0}" -f $details.Message.substring(0, $errorDetailsLengthLimit)) -ForegroundColor:White
+                Write-Verbose ("Full details:`n`t{0}" -f $details)
+            } else {
+                Write-Debug "Details: $details"
+                $parsed = $details | ConvertFrom-Json
+
+                $hasMultipleErrors = $parsed | Get-Member -Name 'errors'
+                if($hasMultipleErrors) {
+                    $parsed = $parsed | Select-Object -ExpandProperty 'errors'
+                }
+
+                $detailsArray = $parsed | ForEach-Object { $_.error.message }
+                $joined = $detailsArray -join "`n"
+                Write-Host ("Error message:`n`t{0}" -f $joined) -ForegroundColor:White
+            }
         }
     }
     break
