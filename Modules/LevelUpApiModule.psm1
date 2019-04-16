@@ -1196,11 +1196,8 @@ function Submit-GetRequest{
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch { 
+        HandleWebRequestException($_) 
     }
 }
 
@@ -1231,11 +1228,8 @@ function Submit-DeleteRequest {
             return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
         }
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch { 
+        HandleWebRequestException($_) 
     }
 }
 
@@ -1262,11 +1256,8 @@ function Submit-PostRequest{
     try {
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch { 
+        HandleWebRequestException($_) 
     }
 }
 
@@ -1293,12 +1284,10 @@ function Submit-PutRequest {
     try {
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
+    catch { 
+        HandleWebRequestException($_) 
     }
-    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
-    }
+
 }
 
 ##################
@@ -1472,6 +1461,8 @@ function Get-LevelUpEnvironment() {
     return $Script:uri
 }
 
+# [Obsolete(@"This method is no longer the preferred method for error handling due to cross " +
+#            "platform incompatibility. Use HandleWebRequestException instead")]
 function HandleHttpResponseException {
     [CmdletBinding()]
     param(
@@ -1498,6 +1489,8 @@ function HandleHttpResponseException {
     break
 }
 
+# [Obsolete(@"This method is no longer the preferred method for error handling due to cross " +
+#            "platform incompatibility. Use HandleWebRequestException instead")]
 function HandleWebException {
     [CmdletBinding()]
     param(
@@ -1544,6 +1537,29 @@ function HandleWebException {
             $responseStream.Close()
             $responseStream.Dispose()
         }
+    }
+    break
+}
+
+function HandleWebRequestException {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        $error
+    )
+
+    $errorDetails = $null
+    $response = $error.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
+
+    if(!$response) {
+        Write-Error -ErrorRecord $error
+    } else {
+        $statusCode = [int]$response.StatusCode
+        $statusDescription = $response.StatusDescription
+        $details = $error.ErrorDetails
+
+        Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
+        if($details){ Write-Host "Error message:`n`t" $details -ForegroundColor:White }
     }
     break
 }
