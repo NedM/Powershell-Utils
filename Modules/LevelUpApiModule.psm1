@@ -1561,9 +1561,10 @@ function HandleWebRequestException {
             $statusDescription = $response.StatusDescription
         }
 
+        Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
+
         $details = $error.ErrorDetails
 
-        Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
         if($details) {
             if($details.Message.length -gt $errorDetailsLengthLimit) {
                 Write-Host ("Error message:`n`t{0}" -f $details.Message.substring(0, $errorDetailsLengthLimit)) -ForegroundColor:White
