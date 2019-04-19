@@ -1196,8 +1196,8 @@ function Submit-GetRequest{
     try {
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
     }
-    catch { 
-        HandleWebRequestException($_) 
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1228,8 +1228,8 @@ function Submit-DeleteRequest {
             return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
         }
     }
-    catch { 
-        HandleWebRequestException($_) 
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1256,8 +1256,8 @@ function Submit-PostRequest{
     try {
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch { 
-        HandleWebRequestException($_) 
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -1284,8 +1284,8 @@ function Submit-PutRequest {
     try {
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $theHeaders
     }
-    catch { 
-        HandleWebRequestException($_) 
+    catch {
+        HandleWebRequestException($_)
     }
 
 }
@@ -1548,23 +1548,33 @@ function HandleWebRequestException {
         $error
     )
 
-    $errorDetails = $null
+    $errorDetailsLengthLimit = 300
     $response = $error.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
 
     if(!$response) {
         Write-Error -ErrorRecord $error
     } else {
         $statusCode = [int]$response.StatusCode
-        $statusDescription = [string]$response.StatusCode 
-        
-        if($response.StatusDescription) { 
-            $statusDescription = $response.StatusDescription 
+        $statusDescription = [string]$response.StatusCode
+
+        if($response.StatusDescription) {
+            $statusDescription = $response.StatusDescription
         }
-        
+
         $details = $error.ErrorDetails
 
         Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
-        if($details){ Write-Host "Error message:`n`t" $details -ForegroundColor:White }
+        if($details) {
+            if($details.Message.length -gt $errorDetailsLengthLimit) {
+                Write-Host ("Error message:`n`t{0}" -f $details.Message.substring(0, $errorDetailsLengthLimit)) -ForegroundColor:White
+                Write-Verbose ("Full details:`n`t{0}" -f $details)
+            } else {
+                Write-Debug "Details: $details"
+                $detailsArray = $details | ConvertFrom-Json | ForEach-Object { $_.error.message }
+                $joined = $detailsArray -join "`n"
+                Write-Host ("Error message:`n`t{0}" -f $joined) -ForegroundColor:White
+            }
+        }
     }
     break
 }
