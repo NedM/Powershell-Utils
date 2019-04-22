@@ -10,4 +10,3 @@ $script:urlBase = "https://httpbin.org/"
 $url = Create-Uri -base $script:urlBase -path "status/$status"
 
 Submit-GetRequest -uri $url
-

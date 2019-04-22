@@ -23,7 +23,7 @@ $Script:baseURI = $Script:environments['production']
 $Script:uri = $Script:baseURI + $Script:ver
 
 # Common HTTP Headers not including Authorization Header
-$commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
+$Script:commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
 
 $Script:apiKey = ''
 $Script:credentials = $null
@@ -1175,32 +1175,6 @@ function Start-LevelUpOAOrder {
 ################
 # REST Methods #
 ################
-function Submit-GetRequest{
-    [cmdletbinding()]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [string]$uri,
-        [Parameter(Mandatory=$false)]
-        [string]$accessToken = $null,
-        [Parameter(Mandatory=$false)]
-        [Hashtable]$headers = $commonHeaders
-    )
-
-    $theHeaders = $headers
-    # Add HTTP Authorization header if access token specified
-    if ($accessToken) {
-        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
-    }
-
-    Write-Verbose "Calling +[GET]+ on $uri"
-    try {
-        return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
-    }
-    catch {
-        HandleWebRequestException($_)
-    }
-}
-
 function Submit-DeleteRequest {
     [cmdletbinding()]
     Param(
@@ -1220,13 +1194,41 @@ function Submit-DeleteRequest {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
-        if($body) {
+        if ($body) {
+            Write-Verbose ("Calling +[DELETE]+ on {0}`nBody:`n{1}" -f $uri, $body)
             return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
-        } else {
+        }
+        else {
+            Write-Verbose ("Calling +[DELETE]+ on {0}" -f $uri)
             return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
         }
+    }
+    catch {
+        HandleWebRequestException($_)
+    }
+}
+
+function Submit-GetRequest{
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$uri,
+        [Parameter(Mandatory=$false)]
+        [string]$accessToken = $null,
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$headers = $commonHeaders
+    )
+
+    $theHeaders = $headers
+    # Add HTTP Authorization header if access token specified
+    if ($accessToken) {
+        $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
+    }
+
+    try {
+        Write-Verbose "Calling +[GET]+ on $uri"
+        return Invoke-WebRequest -Method Get -Uri $uri -Headers $theHeaders
     }
     catch {
         HandleWebRequestException($_)
@@ -1252,8 +1254,8 @@ function Submit-PostRequest{
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[POST]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
+        Write-Verbose ("Calling +[POST]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $theHeaders
     }
     catch {
@@ -1280,14 +1282,13 @@ function Submit-PutRequest {
         $theHeaders = Add-LevelUpAuthorizationHeader $accessToken $headers
     }
 
-    Write-Verbose ("Calling +[PUT]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
     try {
+        Write-Verbose ("Calling +[PUT]+ on {0}`nBody:`n{1}`n" -f $uri, $body)
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $theHeaders
     }
     catch {
         HandleWebRequestException($_)
     }
-
 }
 
 ##################

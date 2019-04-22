@@ -5,6 +5,7 @@
 # Force TLS v1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 
+$Script:commonHeaders = @{ 'Content-Type' = 'application/json'; Accept = 'application/json' }
 function Create-Uri {
     [cmdletbinding()]
     Param(
@@ -30,11 +31,38 @@ function Create-Uri {
             }
         }
     }
-    $uriParts = @($base, $path) | foreach { $_.Trim('/') }
+    $uriParts = @($base, $path) | ForEach-Object { $_.Trim('/') }
     $request = [System.UriBuilder]($uriParts -join '/')
     $request.Query = $params.ToString()
 
     return $request.Uri.ToString()
+}
+
+function Submit-DeleteRequest {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$uri,
+        [Parameter(Mandatory = $false)]
+        [string]$body = $null,
+        [Parameter(Mandatory = $false)]
+        [Hashtable]$headers = $Script:commonHeaders
+    )
+
+
+    try {
+        if ($body) {
+            Write-Verbose "Calling +[DELETE]+ on $uri`nBody:`n$body"
+            return Invoke-WebRequest -Method Delete -Uri $uri -Body $body -Headers $theHeaders
+        }
+        else {
+            Write-Verbose "Calling +[DELETE]+ on $uri"
+            return Invoke-WebRequest -Method Delete -Uri $uri -Headers $theHeaders
+        }
+    }
+    catch {
+        HandleWebRequestException($_)
+    }
 }
 
 function Submit-GetRequest{
@@ -43,19 +71,15 @@ function Submit-GetRequest{
         [Parameter(Mandatory=$true)]
         [string]$uri,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers
+        [Hashtable]$headers = $Script:commonHeaders
     )
 
-    Write-Verbose "Calling +[GET]+ on $uri"
-
     try {
+        Write-Verbose "Calling +[GET]+ on $uri"
         return Invoke-WebRequest -Method Get -Uri $uri -Headers $headers -ErrorAction:Stop
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.Powershell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -67,19 +91,15 @@ function Submit-PostRequest{
         [Parameter(Mandatory=$true)]
         [string]$body,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers
+        [Hashtable]$headers = $Script:commonHeaders
     )
 
-    Write-Verbose "Calling +[POST]+ on $uri`nBody:`n$body"
-
     try {
+        Write-Verbose "Calling +[POST]+ on $uri`nBody:`n$body"
         return Invoke-WebRequest -Method Post -Uri $uri -Body $body -Headers $headers -ErrorAction:Stop
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.Powershell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
@@ -91,78 +111,54 @@ function Submit-PutRequest{
         [Parameter(Mandatory=$true)]
         [string]$body,
         [Parameter(Mandatory=$false)]
-        [Hashtable]$headers
+        [Hashtable]$headers = $Script:commonHeaders
     )
-    Write-Verbose "Calling +[PUT]+ on $uri`nBody:`n$body"
 
     try {
+        Write-Verbose "Calling +[PUT]+ on $uri`nBody:`n$body"
         return Invoke-WebRequest -Method Put -Uri $uri -Body $body -Headers $headers -ErrorAction:Stop
     }
-    catch [System.Net.WebException] {
-        HandleWebException($_.Exception)
-    }
-    catch [Microsoft.Powershell.Commands.HttpResponseException] {
-        HandleHttpResponseException($_.Exception)
+    catch {
+        HandleWebRequestException($_)
     }
 }
 
-function HandleHttpResponseException {
+function HandleWebRequestException {
     [CmdletBinding()]
-    param(
+    param (
         [Parameter()]
-        [Microsoft.Powershell.Commands.HttpResponseException]$exception
+        $error
     )
-    if (!$exception.Response) {
-        Write-Host $exception -ForegroundColor Red
-        break
+
+    $errorDetailsLengthLimit = 300
+    $response = $error.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
+
+    if (!$response) {
+        Write-Error -ErrorRecord $error
     }
+    else {
+        $statusCode = [int]$response.StatusCode
+        $statusDescription = [string]$response.StatusCode
 
-    $statusCode = [int]$exception.Response.StatusCode
-    $statusDescription = $exception.Response.ReasonPhrase
-    Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
-
-    $lastError = $Global:Error | Select-Object -Last 1
-    if ($lastError -and $lastError.ErrorDetails.Message) {
-        $parsed = $lastError.ErrorDetails.Message | ConvertFrom-Json
-        Write-Host "Error message:" -ForegroundColor:DarkGray
-        Write-Host "`t" $parsed.Error.Message -ForegroundColor:DarkGray
-    }
-    break
-}
-
-function HandleWebException([System.Net.WebException]$exception) {
-
-    if(!$exception.Response) {
-        Write-Host $exception -ForegroundColor:Red
-        break
-    }
-
-    $statusCode = [int]$exception.Response.StatusCode
-    $statusDescription = $exception.Response.StatusDescription
-    Write-Host -ForegroundColor:Red "HTTP Error [$statusCode]: $statusDescription"
-
-    $responseStream = $null
-    try {
-        # Get the response body as JSON
-        $responseStream = $exception.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($responseStream)
-        $global:responseBody = $reader.ReadToEnd()
-
-        if($global:responseBody) {
-            Write-Host "Error message:" -ForegroundColor:DarkGray
-            try {
-                $json = $global:responseBody | ConvertFrom-JSON
-                $json | ForEach-Object { Write-Host  "`t" $_.error.message -ForegroundColor:DarkGray }
-            }
-            catch {
-                # Just output the body as raw data
-                Write-Host $global:responseBody -ForegroundColor:DarkGray
-            }
+        if ($response.StatusDescription) {
+            $statusDescription = $response.StatusDescription
         }
-    } finally {
-        if($responseStream) {
-            $responseStream.Close()
-            $responseStream.Dispose()
+
+        Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
+
+        $details = $error.ErrorDetails
+
+        if ($details) {
+            if ($details.Message.length -gt $errorDetailsLengthLimit) {
+                Write-Host ("Error message:`n`t{0}" -f $details.Message.substring(0, $errorDetailsLengthLimit)) -ForegroundColor:White
+                Write-Verbose ("Full details:`n`t{0}" -f $details)
+            }
+            else {
+                Write-Debug "Details: $details"
+                $detailsArray = $details | ConvertFrom-Json | ForEach-Object { $_.error.message }
+                $joined = $detailsArray -join "`n"
+                Write-Host ("Error message:`n`t{0}" -f $joined) -ForegroundColor:White
+            }
         }
     }
     break
