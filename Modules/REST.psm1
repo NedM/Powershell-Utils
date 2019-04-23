@@ -155,7 +155,20 @@ function HandleWebRequestException {
             }
             else {
                 Write-Debug "Details: $details"
-                $detailsArray = $details | ConvertFrom-Json | ForEach-Object { $_.error.message }
+                $parsed = $details | ConvertFrom-Json
+
+                $hasMultipleErrors = $parsed | Get-Member -Name 'errors'
+                if ($hasMultipleErrors) {
+                    $parsed = $parsed | Select-Object -ExpandProperty 'errors'
+                }
+
+                $detailsArray = $parsed | ForEach-Object {
+                    if($_ | Get-Member -Name 'error') {
+                        $_.error.message
+                    } else {
+                        $_
+                    }
+                }
                 $joined = $detailsArray -join "`n"
                 Write-Host ("Error message:`n`t{0}" -f $joined) -ForegroundColor:White
             }

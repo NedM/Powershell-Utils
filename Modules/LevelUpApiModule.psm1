@@ -903,7 +903,7 @@ function Get-LevelUpSubscriptions {
 
     $parsed = $response.Content | ConvertFrom-Json
 
-    return $parsed.subscription
+    return $parsed
 }
 
 
@@ -1572,7 +1572,14 @@ function HandleWebRequestException {
                 Write-Verbose ("Full details:`n`t{0}" -f $details)
             } else {
                 Write-Debug "Details: $details"
-                $detailsArray = $details | ConvertFrom-Json | ForEach-Object { $_.error.message }
+                $parsed = $details | ConvertFrom-Json
+
+                $hasMultipleErrors = $parsed | Get-Member -Name 'errors'
+                if($hasMultipleErrors) {
+                    $parsed = $parsed | Select-Object -ExpandProperty 'errors'
+                }
+
+                $detailsArray = $parsed | ForEach-Object { $_.error.message }
                 $joined = $detailsArray -join "`n"
                 Write-Host ("Error message:`n`t{0}" -f $joined) -ForegroundColor:White
             }
