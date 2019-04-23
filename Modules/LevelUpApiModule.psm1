@@ -895,9 +895,11 @@ function Get-LevelUpSubscriptions {
     [cmdletbinding()]
     Param(
         [Parameter()]
+        [int]$version = [int]$nil,
+        [Parameter()]
         [string]$userAccessToken = $Script:userAccessToken
     )
-    $theUri = "{0}subscriptions" -f ($Script:baseURI + $v15)
+    $theUri = Create-Uri -base ($Script:baseURI + $v15) -path 'subscriptions' -parameters @{ version = $version }
 
     $response = Submit-GetRequest -uri $theUri -headers $Script:commonHeaders -accessToken $userAccessToken
 
