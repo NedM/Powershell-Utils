@@ -1,4 +1,4 @@
-﻿$modulePath = (Join-Path -path $PSScriptRoot -ChildPath '/../modules/MbtaModule.psm1')
+﻿$modulePath = (Join-Path -path $PSScriptRoot -ChildPath '/../Modules/MbtaModule.psm1')
 
 Import-Module $modulePath -Force
 # # Route Type 0 = light rail (e.g. green line), 1 = heavy rail (Red line, orange line, blue line)
@@ -24,6 +24,6 @@ Import-Module $modulePath -Force
 Load-MbtaConfigFromFile
 
 $predictions = Get-Predictions -routeId 'orange' -stopId 'state_street_forest_hills'
-$departurePredictions = Get-DepartureTimePredictions -predictions $predictions 
+$departurePredictions = Get-DepartureTimePredictions -predictions $predictions
 $minutesAway = Convert-PredictedTimes -predictedTimes ($departurePredictions | Select-Object -ExpandProperty 'departure_time')
 Write-Predictions -predictions $minutesAway -routeId 'orange' -stationId 'state_street' -directionId 'forest_hills'
