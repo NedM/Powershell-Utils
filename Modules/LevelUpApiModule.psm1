@@ -1411,13 +1411,6 @@ function Format-LevelUpOAItem([int]$id, [int]$quantity, [string]$specialItemInst
     return $item
 }
 
-function Get-LevelUpSampleItemList() {
-    $item1 = Format-LevelUpItem "Sprockets" "Lovely sprockets with gravy" "Weird stuff" "4321" "1234" 0 7
-    $item2 = Format-LevelUpItem "Soylent Green Eggs & Spam" "Highly processed comestibles" "Food. Or perhaps something darker..." "0101001" "55555" 100 1
-
-    return @($item1,$item2)
-}
-
 function Get-LevelUpOASampleItemList() {
     $cheese_steak = Format-LevelUpOAItem -id 2139027 -quantity 2 -specialItemInstructions 'Roast thoroughly in the heat of active volcano.' -optionIds $null
     $chix_pesto = Format-LevelUpOAItem -id 2139028 -quantity 1 -specialItemInstructions 'Lightly sauce on the underside during the waning moon.' -optionIds $null
