@@ -195,7 +195,9 @@ function Submit-LevelUpProposedOrder {
         [Parameter()]
         [string]$merchantAccessToken = $Script:merchantAccessToken,
         [Parameter()]
-        [switch]$partialAuthAllowed
+        [switch]$partialAuthAllowed,
+        [Parameter()]
+        [switch]$discountOnly
     )
 
     $theURI = $Script:baseURI + $v15 + "proposed_orders"
@@ -203,6 +205,7 @@ function Submit-LevelUpProposedOrder {
     $proposed_order = @{
         proposed_order = @{
             cashier = 'LevelUp Powershell Script';
+            discount_only = $discountOnly.IsPresent;
             exemption_amount = $exemptionAmount;
             identifier_from_merchant = 'Check # TEST # Check';
             location_id = $locationId;
@@ -303,7 +306,9 @@ function Submit-LevelUpCompleteOrder {
         [Parameter()]
         [string]$merchantAccessToken = $Script:merchantAccessToken,
         [Parameter()]
-        [switch]$partialAuthAllowed
+        [switch]$partialAuthAllowed,
+        [Parameter()]
+        [switch]$discountOnly
     )
 
     $theURI = $Script:baseURI + $v15 + "completed_orders"
@@ -312,6 +317,7 @@ function Submit-LevelUpCompleteOrder {
         completed_order = @{
             applied_discount_amount = $appliedDiscount;
             cashier = 'LevelUp Powershell Script';
+            discount_only = $discountOnly.IsPresent;
             exemption_amount = $exemptionAmount;
             identifier_from_merchant = 'Check # TEST # Check';
             location_id = $locationId;
@@ -1546,14 +1552,14 @@ function HandleWebRequestException {
     [CmdletBinding()]
     param (
         [Parameter()]
-        $error
+        $errorException
     )
 
     $errorDetailsLengthLimit = 300
-    $response = $error.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
+    $response = $errorException.Exception | Select-Object -ExpandProperty 'Response' -ErrorAction Ignore
 
     if(!$response) {
-        Write-Error -ErrorRecord $error
+        Write-Error -ErrorRecord $errorException
     } else {
         $statusCode = [int]$response.StatusCode
         $statusDescription = [string]$response.StatusCode
@@ -1564,7 +1570,7 @@ function HandleWebRequestException {
 
         Write-Host "HTTP Error [$statusCode]: $statusDescription" -ForegroundColor:Red
 
-        $details = $error.ErrorDetails
+        $details = $errorException.ErrorDetails
 
         if($details) {
             if($details.Message.length -gt $errorDetailsLengthLimit) {
